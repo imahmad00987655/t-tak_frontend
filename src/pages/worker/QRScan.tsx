@@ -194,7 +194,7 @@ export default function QRScanPage() {
               resolve(true);
               return;
             }
-            if (Date.now() - startedAt > 1800) {
+            if (Date.now() - startedAt > 6000) {
               resolve(false);
               return;
             }
@@ -206,6 +206,7 @@ export default function QRScanPage() {
       };
 
       let activeStream: MediaStream | null = null;
+      let fallbackStream: MediaStream | null = null;
       for (const constraints of videoConstraintsToTry) {
         const trial = await navigator.mediaDevices.getUserMedia({
           video: constraints,
@@ -216,14 +217,20 @@ export default function QRScanPage() {
           activeStream = trial;
           break;
         }
-        trial.getTracks().forEach((track) => track.stop());
+        if (!fallbackStream) {
+          fallbackStream = trial;
+        } else {
+          trial.getTracks().forEach((track) => track.stop());
+        }
       }
 
-      if (!activeStream) {
-        throw new Error('Camera opened but no live frames received. Try another browser/device camera.');
-      }
+      if (!activeStream && fallbackStream) activeStream = fallbackStream;
+      if (!activeStream) throw new Error('Unable to start camera stream');
 
       streamRef.current = activeStream;
+      if (activeStream && !hasLiveFrame) {
+        setCameraError('Camera started. If preview is black, tap "Tap to start preview" once.');
+      }
       setCameraReady(true);
       rafRef.current = requestAnimationFrame(scanFrame);
     } catch (error) {
@@ -233,7 +240,7 @@ export default function QRScanPage() {
           : 'Camera permission denied or unavailable. Allow camera permission and retry.'
       );
     }
-  }, [hasNativeBarcodeDetector, scanFrame]);
+  }, [hasLiveFrame, hasNativeBarcodeDetector, scanFrame]);
 
   useEffect(() => {
     startCamera();
