@@ -30,6 +30,7 @@ export default function QRScanPage() {
   const { toast } = useToast();
   const [manualId, setManualId] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [hasLiveFrame, setHasLiveFrame] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [isResolving, setIsResolving] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -94,6 +95,7 @@ export default function QRScanPage() {
       streamRef.current = null;
     }
     setCameraReady(false);
+    setHasLiveFrame(false);
   }, []);
 
   const scanFrame = useCallback(async () => {
@@ -105,6 +107,9 @@ export default function QRScanPage() {
     if (video.readyState < 2) {
       rafRef.current = requestAnimationFrame(scanFrame);
       return;
+    }
+    if (!hasLiveFrame && video.videoWidth > 0 && video.videoHeight > 0) {
+      setHasLiveFrame(true);
     }
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -134,6 +139,7 @@ export default function QRScanPage() {
 
   const startCamera = useCallback(async () => {
     setCameraError('');
+    setHasLiveFrame(false);
     handledScanRef.current = false;
     try {
       detectorRef.current = null;
@@ -151,8 +157,21 @@ export default function QRScanPage() {
       });
       streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        const video = videoRef.current;
+        video.srcObject = stream;
+        video.setAttribute('playsinline', 'true');
+        await new Promise<void>((resolve) => {
+          if (video.readyState >= 1) {
+            resolve();
+            return;
+          }
+          const onLoaded = () => {
+            video.removeEventListener('loadedmetadata', onLoaded);
+            resolve();
+          };
+          video.addEventListener('loadedmetadata', onLoaded);
+        });
+        await video.play();
       }
       setCameraReady(true);
       rafRef.current = requestAnimationFrame(scanFrame);
@@ -186,13 +205,18 @@ export default function QRScanPage() {
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-72 h-72 border-2 border-dashed border-border rounded-xl bg-muted overflow-hidden relative">
           {cameraReady ? (
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+            <video ref={videoRef} className="w-full h-full object-cover bg-black" playsInline muted autoPlay />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center">
               <Camera className="w-12 h-12 text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground text-center px-4">
                 {cameraError || 'Starting camera...'}
               </p>
+            </div>
+          )}
+          {cameraReady && !hasLiveFrame && (
+            <div className="absolute inset-0 bg-black/40 text-white text-xs flex items-center justify-center px-3 text-center">
+              Camera connected, waiting for live preview...
             </div>
           )}
           <canvas ref={canvasRef} className="hidden" />
