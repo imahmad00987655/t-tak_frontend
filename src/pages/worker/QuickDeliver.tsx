@@ -1,21 +1,66 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockCustomers, mockProducts } from '@/data/mockData';
 import { ArrowLeft, Check, Minus, Plus, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchCustomer } from '@/lib/customersApi';
+import { createDelivery, fetchDeliveryLookups } from '@/lib/deliveriesApi';
+
+function resolveWorkerId(userId?: string) {
+  if (!userId) return '';
+  const m = userId.match(/(\d+)$/);
+  return m ? m[1] : '';
+}
 
 export default function QuickDeliverPage() {
   const { customerId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const customer = mockCustomers.find(c => c.id === customerId);
-  const activeProducts = mockProducts.filter(p => p.status === 'active' && p.defaultPrice > 0);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const workerId = user?.employeeId || resolveWorkerId(user?.id);
+  const { data: customer, isLoading: customerLoading, isError: customerError } = useQuery({
+    queryKey: ['customer', customerId],
+    queryFn: () => fetchCustomer(customerId!),
+    enabled: !!customerId,
+  });
+  const { data: lookups, isLoading: lookupsLoading } = useQuery({
+    queryKey: ['delivery-lookups'],
+    queryFn: fetchDeliveryLookups,
+  });
+  const activeProducts = useMemo(
+    () => (lookups?.products ?? []).filter((p) => p.status === 'active' && p.defaultPrice > 0),
+    [lookups]
+  );
 
   const [items, setItems] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState('');
 
-  if (!customer) return <div className="p-8 text-center text-muted-foreground">Customer not found</div>;
+  const createMutation = useMutation({
+    mutationFn: createDelivery,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['worker-dashboard', workerId] }),
+        queryClient.invalidateQueries({ queryKey: ['client-dashboard', customerId] }),
+        queryClient.invalidateQueries({ queryKey: ['deliveries'] }),
+      ]);
+      toast({ title: 'Delivery recorded', description: 'Customer and dashboard data has been updated.' });
+      navigate('/worker');
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to record delivery',
+        description: error instanceof Error ? error.message : 'Unexpected API error',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  if (!customerId) return <div className="p-8 text-center text-muted-foreground">Invalid customer link</div>;
+  if (customerLoading || lookupsLoading) return <div className="p-8 text-center text-muted-foreground">Loading customer data...</div>;
+  if (customerError || !customer) return <div className="p-8 text-center text-muted-foreground">Customer not found</div>;
 
   const updateQty = (productId: string, delta: number) => {
     setItems(prev => {
@@ -40,8 +85,38 @@ export default function QuickDeliverPage() {
       toast({ title: 'Select at least one product', variant: 'destructive' });
       return;
     }
-    toast({ title: 'Delivery recorded!', description: `Rs ${total} for ${customer.name}` });
-    navigate('/worker');
+    if (!workerId) {
+      toast({ title: 'Worker account missing', description: 'Please login again.', variant: 'destructive' });
+      return;
+    }
+
+    const deliveryItems = Object.entries(items)
+      .map(([productId, quantity]) => {
+        const product = activeProducts.find((p) => p.id === productId);
+        if (!product || quantity <= 0) return null;
+        return {
+          productId,
+          quantity,
+          unitPrice: product.defaultPrice,
+        };
+      })
+      .filter((item): item is { productId: string; quantity: number; unitPrice: number } => !!item);
+
+    if (deliveryItems.length === 0) {
+      toast({ title: 'Invalid products', description: 'Please select at least one valid product.', variant: 'destructive' });
+      return;
+    }
+
+    createMutation.mutate({
+      customerId: customer.id,
+      workerId,
+      status: amountDue > 0 ? 'partially_delivered' : 'delivered',
+      paymentStatus: amountDue > 0 ? 'partial' : 'paid',
+      walletDeduction: Math.min(total, customer.walletBalance),
+      deliveryDate: new Date().toISOString().slice(0, 10),
+      notes: notes.trim() || undefined,
+      items: deliveryItems,
+    });
   };
 
   return (
@@ -121,7 +196,11 @@ export default function QuickDeliverPage() {
 
       {/* Confirm */}
       <div className="p-4 border-t border-border bg-card">
-        <Button onClick={handleConfirm} className="w-full h-14 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-semibold" disabled={Object.keys(items).length === 0}>
+        <Button
+          onClick={handleConfirm}
+          className="w-full h-14 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-semibold"
+          disabled={Object.keys(items).length === 0 || createMutation.isPending}
+        >
           <Check className="w-5 h-5 mr-2" /> Confirm Delivery · Rs {total}
         </Button>
       </div>
