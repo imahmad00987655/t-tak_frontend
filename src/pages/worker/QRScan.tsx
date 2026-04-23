@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fetchCustomers, fetchPublicCustomerByToken } from '@/lib/customersApi';
 import { useToast } from '@/hooks/use-toast';
-import jsQR from 'jsqr';
-
-type BarcodeDetectorLike = {
-  detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>>;
-};
+import { Html5Qrcode } from 'html5-qrcode';
 
 function readTokenFromQrValue(value: string): string | null {
   const raw = value.trim();
@@ -30,18 +26,10 @@ export default function QRScanPage() {
   const { toast } = useToast();
   const [manualId, setManualId] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
-  const [hasLiveFrame, setHasLiveFrame] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [isResolving, setIsResolving] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const rafRef = useRef<number | null>(null);
   const handledScanRef = useRef(false);
-  const detectorRef = useRef<BarcodeDetectorLike | null>(null);
-  const previewRetryRef = useRef<number | null>(null);
-
-  const hasNativeBarcodeDetector = useMemo(() => typeof (window as any).BarcodeDetector !== 'undefined', []);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   const goToCustomerByLookup = useCallback(async (value: string) => {
     const needle = value.trim().toLowerCase();
@@ -86,179 +74,69 @@ export default function QRScanPage() {
     }
   }, [goToCustomerByLookup, isResolving, navigate, toast]);
 
-  const stopCamera = useCallback(() => {
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (previewRetryRef.current) {
-      window.clearTimeout(previewRetryRef.current);
-      previewRetryRef.current = null;
+  const stopCamera = useCallback(async () => {
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch (error) {
+        console.warn('Failed stopping QR scanner', error);
+      } finally {
+        await scannerRef.current.clear();
+        scannerRef.current = null;
+      }
     }
     setCameraReady(false);
-    setHasLiveFrame(false);
   }, []);
-
-  const scanFrame = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || handledScanRef.current) {
-      rafRef.current = requestAnimationFrame(scanFrame);
-      return;
-    }
-    const video = videoRef.current;
-    if (video.readyState < 2) {
-      rafRef.current = requestAnimationFrame(scanFrame);
-      return;
-    }
-    if (video.videoWidth > 0 && video.videoHeight > 0) setHasLiveFrame(true);
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      rafRef.current = requestAnimationFrame(scanFrame);
-      return;
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    try {
-      let rawValue = '';
-      if (detectorRef.current) {
-        const codes = await detectorRef.current.detect(canvas);
-        rawValue = codes[0]?.rawValue || '';
-      } else {
-        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(image.data, image.width, image.height);
-        rawValue = code?.data || '';
-      }
-      if (rawValue) await handleResolvedValue(rawValue);
-    } catch {
-      // Ignore frame-level decode failures.
-    }
-    rafRef.current = requestAnimationFrame(scanFrame);
-  }, [handleResolvedValue]);
 
   const startCamera = useCallback(async () => {
     setCameraError('');
-    setHasLiveFrame(false);
     handledScanRef.current = false;
     try {
-      detectorRef.current = null;
-      if (hasNativeBarcodeDetector) {
-        const DetectorCtor = (window as any).BarcodeDetector;
-        detectorRef.current = new DetectorCtor({ formats: ['qr_code'] }) as BarcodeDetectorLike;
-      }
       if (!navigator.mediaDevices?.getUserMedia) {
         setCameraError('Camera API is unavailable in this browser. Use manual ID/phone search.');
         return;
       }
-      const videoConstraintsToTry: MediaTrackConstraints[] = [
-        { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        { width: { ideal: 1280 }, height: { ideal: 720 } },
-        { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        true as unknown as MediaTrackConstraints,
-      ];
-
-      const attachAndValidateStream = async (stream: MediaStream): Promise<boolean> => {
-        if (!videoRef.current) return false;
-        const video = videoRef.current;
-        video.srcObject = stream;
-        video.playsInline = true;
-        video.setAttribute('playsinline', 'true');
-        video.muted = true;
-        video.autoplay = true;
-        const onLive = () => setHasLiveFrame(true);
-        video.onloadeddata = onLive;
-        video.onplaying = onLive;
-        video.ontimeupdate = onLive;
-        await new Promise<void>((resolve) => {
-          if (video.readyState >= 1) {
-            resolve();
-            return;
-          }
-          const onLoaded = () => {
-            video.removeEventListener('loadedmetadata', onLoaded);
-            resolve();
-          };
-          video.addEventListener('loadedmetadata', onLoaded);
-        });
-        await video.play();
-
-        const hasFrame = await new Promise<boolean>((resolve) => {
-          const startedAt = Date.now();
-          const check = () => {
-            const ready = video.videoWidth > 0 && video.videoHeight > 0;
-            if (ready) {
-              resolve(true);
-              return;
-            }
-            if (Date.now() - startedAt > 6000) {
-              resolve(false);
-              return;
-            }
-            requestAnimationFrame(check);
-          };
-          check();
-        });
-        return hasFrame;
+      const scanner = new Html5Qrcode('worker-qr-reader', {
+        verbose: false,
+      });
+      scannerRef.current = scanner;
+      const onSuccess = async (decodedText: string) => {
+        await handleResolvedValue(decodedText);
       };
-
-      let activeStream: MediaStream | null = null;
-      let fallbackStream: MediaStream | null = null;
-      for (const constraints of videoConstraintsToTry) {
-        const trial = await navigator.mediaDevices.getUserMedia({
-          video: constraints,
-          audio: false,
-        });
-        const ok = await attachAndValidateStream(trial);
-        if (ok) {
-          activeStream = trial;
-          break;
-        }
-        if (!fallbackStream) {
-          fallbackStream = trial;
-        } else {
-          trial.getTracks().forEach((track) => track.stop());
-        }
-      }
-
-      if (!activeStream && fallbackStream) activeStream = fallbackStream;
-      if (!activeStream) throw new Error('Unable to start camera stream');
-
-      streamRef.current = activeStream;
-      if (activeStream && !hasLiveFrame) {
-        setCameraError('Camera started. If preview is black, tap "Tap to start preview" once.');
-      }
+      const onFailure = (_errorMessage: string) => {
+        // keep scanning; noisy decode errors are expected per frame
+      };
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 240, height: 240 },
+          aspectRatio: 1,
+          disableFlip: false,
+        },
+        onSuccess,
+        onFailure
+      );
+      console.info('QR camera started successfully');
       setCameraReady(true);
-      rafRef.current = requestAnimationFrame(scanFrame);
     } catch (error) {
+      console.error('QR camera start failed', error);
       setCameraError(
         error instanceof Error
           ? error.message
           : 'Camera permission denied or unavailable. Allow camera permission and retry.'
       );
     }
-  }, [hasLiveFrame, hasNativeBarcodeDetector, scanFrame]);
+  }, [handleResolvedValue]);
 
   useEffect(() => {
     startCamera();
-    return () => stopCamera();
+    return () => {
+      void stopCamera();
+    };
   }, [startCamera, stopCamera]);
-
-  const handleStartPreview = async () => {
-    try {
-      if (videoRef.current) {
-        await videoRef.current.play();
-        if (videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
-          setHasLiveFrame(true);
-        }
-      }
-    } catch (error) {
-      setCameraError(error instanceof Error ? error.message : 'Unable to start preview');
-    }
-  };
 
   const handleManualSearch = async () => {
     const value = manualId.trim();
@@ -275,25 +153,15 @@ export default function QRScanPage() {
 
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-72 h-72 border-2 border-dashed border-border rounded-xl bg-muted overflow-hidden relative">
-          {cameraReady ? (
-            <video ref={videoRef} className="w-full h-full object-cover bg-black" playsInline muted autoPlay />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center">
+          <div id="worker-qr-reader" className="w-full h-full [&>div]:w-full [&>div]:h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover" />
+          {!cameraReady && (
+            <div className="absolute inset-0 bg-muted w-full h-full flex flex-col items-center justify-center">
               <Camera className="w-12 h-12 text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground text-center px-4">
                 {cameraError || 'Starting camera...'}
               </p>
             </div>
           )}
-          {cameraReady && !hasLiveFrame && (
-            <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col items-center justify-center px-3 text-center gap-2">
-              <p>Camera connected, waiting for live preview...</p>
-              <Button variant="secondary" size="sm" onClick={handleStartPreview}>
-                Tap to start preview
-              </Button>
-            </div>
-          )}
-          <canvas ref={canvasRef} className="hidden" />
         </div>
         <p className="text-xs text-muted-foreground mt-3 text-center">
           Scan customer QR to open that customer directly.
