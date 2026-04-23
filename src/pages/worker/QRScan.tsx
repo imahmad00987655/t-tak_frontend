@@ -4,6 +4,7 @@ import { ArrowLeft, Camera, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fetchCustomers, fetchPublicCustomerByToken } from '@/lib/customersApi';
 import { useToast } from '@/hooks/use-toast';
+import jsQR from 'jsqr';
 
 type BarcodeDetectorLike = {
   detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>>;
@@ -38,7 +39,7 @@ export default function QRScanPage() {
   const handledScanRef = useRef(false);
   const detectorRef = useRef<BarcodeDetectorLike | null>(null);
 
-  const hasBarcodeSupport = useMemo(() => typeof (window as any).BarcodeDetector !== 'undefined', []);
+  const hasNativeBarcodeDetector = useMemo(() => typeof (window as any).BarcodeDetector !== 'undefined', []);
 
   const goToCustomerByLookup = useCallback(async (value: string) => {
     const needle = value.trim().toLowerCase();
@@ -96,7 +97,7 @@ export default function QRScanPage() {
   }, []);
 
   const scanFrame = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !detectorRef.current || handledScanRef.current) {
+    if (!videoRef.current || !canvasRef.current || handledScanRef.current) {
       rafRef.current = requestAnimationFrame(scanFrame);
       return;
     }
@@ -115,11 +116,16 @@ export default function QRScanPage() {
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     try {
-      const codes = await detectorRef.current.detect(canvas);
-      const rawValue = codes[0]?.rawValue;
-      if (rawValue) {
-        await handleResolvedValue(rawValue);
+      let rawValue = '';
+      if (detectorRef.current) {
+        const codes = await detectorRef.current.detect(canvas);
+        rawValue = codes[0]?.rawValue || '';
+      } else {
+        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(image.data, image.width, image.height);
+        rawValue = code?.data || '';
       }
+      if (rawValue) await handleResolvedValue(rawValue);
     } catch {
       // Ignore frame-level decode failures.
     }
@@ -129,13 +135,16 @@ export default function QRScanPage() {
   const startCamera = useCallback(async () => {
     setCameraError('');
     handledScanRef.current = false;
-    if (!hasBarcodeSupport) {
-      setCameraError('Camera QR scanning is not supported on this browser. Please enter ID/phone manually.');
-      return;
-    }
     try {
-      const DetectorCtor = (window as any).BarcodeDetector;
-      detectorRef.current = new DetectorCtor({ formats: ['qr_code'] }) as BarcodeDetectorLike;
+      detectorRef.current = null;
+      if (hasNativeBarcodeDetector) {
+        const DetectorCtor = (window as any).BarcodeDetector;
+        detectorRef.current = new DetectorCtor({ formats: ['qr_code'] }) as BarcodeDetectorLike;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError('Camera API is unavailable in this browser. Use manual ID/phone search.');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
@@ -151,10 +160,10 @@ export default function QRScanPage() {
       setCameraError(
         error instanceof Error
           ? error.message
-          : 'Camera permission denied or unavailable.'
+          : 'Camera permission denied or unavailable. Allow camera permission and retry.'
       );
     }
-  }, [hasBarcodeSupport, scanFrame]);
+  }, [hasNativeBarcodeDetector, scanFrame]);
 
   useEffect(() => {
     startCamera();
