@@ -154,14 +154,18 @@ export default function QRScanPage() {
         setCameraError('Camera API is unavailable in this browser. Use manual ID/phone search.');
         return;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
+      const videoConstraintsToTry: MediaTrackConstraints[] = [
+        { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        { width: { ideal: 1280 }, height: { ideal: 720 } },
+        { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        true as unknown as MediaTrackConstraints,
+      ];
+
+      const attachAndValidateStream = async (stream: MediaStream): Promise<boolean> => {
+        if (!videoRef.current) return false;
         const video = videoRef.current;
         video.srcObject = stream;
+        video.playsInline = true;
         video.setAttribute('playsinline', 'true');
         video.muted = true;
         video.autoplay = true;
@@ -181,13 +185,45 @@ export default function QRScanPage() {
           video.addEventListener('loadedmetadata', onLoaded);
         });
         await video.play();
-        if (previewRetryRef.current) window.clearTimeout(previewRetryRef.current);
-        previewRetryRef.current = window.setTimeout(() => {
-          if (videoRef.current && (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0)) {
-            videoRef.current.play().catch(() => {});
-          }
-        }, 1200);
+
+        const hasFrame = await new Promise<boolean>((resolve) => {
+          const startedAt = Date.now();
+          const check = () => {
+            const ready = video.videoWidth > 0 && video.videoHeight > 0;
+            if (ready) {
+              resolve(true);
+              return;
+            }
+            if (Date.now() - startedAt > 1800) {
+              resolve(false);
+              return;
+            }
+            requestAnimationFrame(check);
+          };
+          check();
+        });
+        return hasFrame;
+      };
+
+      let activeStream: MediaStream | null = null;
+      for (const constraints of videoConstraintsToTry) {
+        const trial = await navigator.mediaDevices.getUserMedia({
+          video: constraints,
+          audio: false,
+        });
+        const ok = await attachAndValidateStream(trial);
+        if (ok) {
+          activeStream = trial;
+          break;
+        }
+        trial.getTracks().forEach((track) => track.stop());
       }
+
+      if (!activeStream) {
+        throw new Error('Camera opened but no live frames received. Try another browser/device camera.');
+      }
+
+      streamRef.current = activeStream;
       setCameraReady(true);
       rafRef.current = requestAnimationFrame(scanFrame);
     } catch (error) {
