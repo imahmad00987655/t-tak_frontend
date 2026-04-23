@@ -39,6 +39,7 @@ export default function QRScanPage() {
   const rafRef = useRef<number | null>(null);
   const handledScanRef = useRef(false);
   const detectorRef = useRef<BarcodeDetectorLike | null>(null);
+  const previewRetryRef = useRef<number | null>(null);
 
   const hasNativeBarcodeDetector = useMemo(() => typeof (window as any).BarcodeDetector !== 'undefined', []);
 
@@ -94,6 +95,10 @@ export default function QRScanPage() {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    if (previewRetryRef.current) {
+      window.clearTimeout(previewRetryRef.current);
+      previewRetryRef.current = null;
+    }
     setCameraReady(false);
     setHasLiveFrame(false);
   }, []);
@@ -108,9 +113,7 @@ export default function QRScanPage() {
       rafRef.current = requestAnimationFrame(scanFrame);
       return;
     }
-    if (!hasLiveFrame && video.videoWidth > 0 && video.videoHeight > 0) {
-      setHasLiveFrame(true);
-    }
+    if (video.videoWidth > 0 && video.videoHeight > 0) setHasLiveFrame(true);
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
@@ -160,6 +163,12 @@ export default function QRScanPage() {
         const video = videoRef.current;
         video.srcObject = stream;
         video.setAttribute('playsinline', 'true');
+        video.muted = true;
+        video.autoplay = true;
+        const onLive = () => setHasLiveFrame(true);
+        video.onloadeddata = onLive;
+        video.onplaying = onLive;
+        video.ontimeupdate = onLive;
         await new Promise<void>((resolve) => {
           if (video.readyState >= 1) {
             resolve();
@@ -172,6 +181,12 @@ export default function QRScanPage() {
           video.addEventListener('loadedmetadata', onLoaded);
         });
         await video.play();
+        if (previewRetryRef.current) window.clearTimeout(previewRetryRef.current);
+        previewRetryRef.current = window.setTimeout(() => {
+          if (videoRef.current && (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0)) {
+            videoRef.current.play().catch(() => {});
+          }
+        }, 1200);
       }
       setCameraReady(true);
       rafRef.current = requestAnimationFrame(scanFrame);
@@ -188,6 +203,19 @@ export default function QRScanPage() {
     startCamera();
     return () => stopCamera();
   }, [startCamera, stopCamera]);
+
+  const handleStartPreview = async () => {
+    try {
+      if (videoRef.current) {
+        await videoRef.current.play();
+        if (videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
+          setHasLiveFrame(true);
+        }
+      }
+    } catch (error) {
+      setCameraError(error instanceof Error ? error.message : 'Unable to start preview');
+    }
+  };
 
   const handleManualSearch = async () => {
     const value = manualId.trim();
@@ -215,8 +243,11 @@ export default function QRScanPage() {
             </div>
           )}
           {cameraReady && !hasLiveFrame && (
-            <div className="absolute inset-0 bg-black/40 text-white text-xs flex items-center justify-center px-3 text-center">
-              Camera connected, waiting for live preview...
+            <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col items-center justify-center px-3 text-center gap-2">
+              <p>Camera connected, waiting for live preview...</p>
+              <Button variant="secondary" size="sm" onClick={handleStartPreview}>
+                Tap to start preview
+              </Button>
             </div>
           )}
           <canvas ref={canvasRef} className="hidden" />
