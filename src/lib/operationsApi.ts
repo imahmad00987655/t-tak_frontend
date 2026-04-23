@@ -1,0 +1,137 @@
+import { apiFetch } from './api';
+import type { UserRole } from '@/types';
+
+export interface ExpenseDto {
+  id: string;
+  dbId: string;
+  category: string;
+  description: string;
+  amount: number;
+  date: string;
+}
+
+export interface EmployeeDto {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  role: UserRole | 'admin' | 'staff' | 'field_worker';
+  status: 'active' | 'inactive';
+  assignedArea: string;
+  assignedRoute: string;
+  joiningDate: string;
+  deliveriesCompleted: number;
+  failedDeliveries: number;
+  totalSales: number;
+  collectedPayments: number;
+}
+
+export interface ReportsOverviewDto {
+  monthlyRevenue: number;
+  totalDeliveries: number;
+  outstandingDues: number;
+  netProfit: number;
+  monthlyExpenses: number;
+}
+
+export interface ReportsChartsDto {
+  revenueTrend: Array<{ day: string; revenue: number }>;
+  deliveryVolume: Array<{ day: string; deliveries: number }>;
+}
+
+export interface DailyClosingSummaryDto {
+  date: string;
+  totalDeliveries: number;
+  completed: number;
+  failed: number;
+  pending: number;
+  revenue: number;
+  expenses: number;
+  net: number;
+  isClosed: boolean;
+  closedRecord: null | {
+    id: string;
+    closedBy: string;
+    closedAt: string;
+  };
+}
+
+export interface AuditLogDto {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: string;
+  details: string;
+}
+
+export async function fetchExpenses(): Promise<ExpenseDto[]> {
+  const json = await apiFetch<{ data: ExpenseDto[] }>('/api/expenses');
+  return json.data;
+}
+
+export async function createExpense(body: {
+  category: string;
+  description: string;
+  amount: number;
+  date: string;
+  actor?: string;
+}) {
+  const json = await apiFetch<{ data: unknown }>('/api/expenses', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return json.data;
+}
+
+export async function fetchEmployees(): Promise<EmployeeDto[]> {
+  const json = await apiFetch<{ data: EmployeeDto[] }>('/api/employees');
+  return json.data;
+}
+
+export async function createEmployee(body: {
+  name: string;
+  phone: string;
+  email?: string;
+  role: 'field_worker' | 'staff' | 'admin';
+  assignedArea?: string;
+  assignedRoute?: string;
+  loginPhone?: string;
+  loginEmail?: string;
+  loginPassword?: string;
+  actor?: string;
+}) {
+  const json = await apiFetch<{ data: unknown }>('/api/employees', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return json.data;
+}
+
+export async function fetchReportsOverview(): Promise<ReportsOverviewDto> {
+  const json = await apiFetch<{ data: ReportsOverviewDto }>('/api/reports/overview');
+  return json.data;
+}
+
+export async function fetchReportsCharts(): Promise<ReportsChartsDto> {
+  const json = await apiFetch<{ data: ReportsChartsDto }>('/api/reports/charts');
+  return json.data;
+}
+
+export async function fetchDailyClosingSummary(date?: string): Promise<DailyClosingSummaryDto> {
+  const q = date ? `?date=${encodeURIComponent(date)}` : '';
+  const json = await apiFetch<{ data: DailyClosingSummaryDto }>(`/api/daily-closing/today${q}`);
+  return json.data;
+}
+
+export async function closeDay(body: { date?: string; actor?: string }): Promise<DailyClosingSummaryDto> {
+  const json = await apiFetch<{ data: DailyClosingSummaryDto }>('/api/daily-closing/close', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return json.data;
+}
+
+export async function fetchAuditLogs(limit = 100): Promise<AuditLogDto[]> {
+  const json = await apiFetch<{ data: AuditLogDto[] }>(`/api/audit-logs?limit=${limit}`);
+  return json.data;
+}
