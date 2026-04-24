@@ -20,17 +20,17 @@ DROP TABLE IF EXISTS inventory_transactions;
 DROP TABLE IF EXISTS inventory_items;
 DROP TABLE IF EXISTS route_workers;
 DROP TABLE IF EXISTS routes;
-DROP TABLE IF EXISTS payments;
-DROP TABLE IF EXISTS role_permissions;
-DROP TABLE IF EXISTS app_settings;
-DROP TABLE IF EXISTS notification_settings;
-DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS payments;....
+DROP TABLE IF EXISTS role_permissions;....
+DROP TABLE IF EXISTS app_settings;....
+DROP TABLE IF EXISTS notification_settings;....
+DROP TABLE IF EXISTS users;....
 DROP TABLE IF EXISTS daily_closings;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS expenses;
 DROP TABLE IF EXISTS delivery_items;
 DROP TABLE IF EXISTS deliveries;
-DROP TABLE IF EXISTS wallet_transactions;
+DROP TABLE IF EXISTS wallet_transactions;....
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS employees;
 DROP TABLE IF EXISTS customers;
@@ -176,7 +176,7 @@ CREATE TABLE payments (
   customer_id INT UNSIGNED NULL,
   walk_in_name VARCHAR(255) NULL,
   amount DECIMAL(12, 2) NOT NULL,
-  method ENUM('cash', 'bank_transfer', 'online', 'other') NOT NULL,
+  method ENUM('cash', 'bank_transfer', 'online', 'card', 'other') NOT NULL,
   reference_id VARCHAR(64) NULL,
   notes VARCHAR(512) NULL,
   applied_to_wallet TINYINT(1) NOT NULL DEFAULT 1,
@@ -185,6 +185,15 @@ CREATE TABLE payments (
   KEY idx_payments_customer (customer_id),
   KEY idx_payments_created_at (created_at),
   CONSTRAINT fk_payments_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE expense_categories (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(128) NOT NULL,
+  status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_expense_categories_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
@@ -339,6 +348,26 @@ CREATE TABLE inventory_transactions (
   CONSTRAINT fk_inventory_txn_item FOREIGN KEY (inventory_item_id) REFERENCES inventory_items (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE returns_damages (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  entry_type ENUM('return', 'damage') NOT NULL,
+  customer_id INT UNSIGNED NULL,
+  walk_in_name VARCHAR(255) NULL,
+  product_id INT UNSIGNED NOT NULL,
+  quantity INT UNSIGNED NOT NULL,
+  unit_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  adjustment_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  reason VARCHAR(255) NULL,
+  notes VARCHAR(512) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_returns_damages_created (created_at),
+  KEY idx_returns_damages_customer (customer_id),
+  KEY idx_returns_damages_product (product_id),
+  CONSTRAINT fk_returns_damages_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL,
+  CONSTRAINT fk_returns_damages_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 ALTER TABLE products
   ADD CONSTRAINT fk_products_inventory_item
   FOREIGN KEY (inventory_item_id) REFERENCES inventory_items (id) ON DELETE SET NULL;
@@ -397,6 +426,13 @@ INSERT INTO expenses (category, description, amount, expense_date, created_at) V
   ('Maintenance', 'Filter replacement - Plant Unit 2', 12000.00, '2026-04-07', '2026-04-07 11:00:00'),
   ('Utilities', 'Electricity bill - April', 45000.00, '2026-04-05', '2026-04-05 10:00:00'),
   ('Packaging', 'Bottle caps and shrink wrap order', 8500.00, '2026-04-03', '2026-04-03 15:30:00');
+
+INSERT INTO expense_categories (name, status) VALUES
+  ('Fuel', 'active'),
+  ('Maintenance', 'active'),
+  ('Utilities', 'active'),
+  ('Packaging', 'active')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
 
 INSERT INTO deliveries (
   id, delivery_code, customer_id, worker_id, status, payment_status,

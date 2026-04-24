@@ -18,9 +18,11 @@ import { fetchFinanceLookups, fetchPayments, recordPayment, type PaymentDto } fr
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const { data: payments = [], isLoading, isError, error } = useQuery({
-    queryKey: ['payments'],
-    queryFn: fetchPayments,
+    queryKey: ['payments', fromDate, toDate],
+    queryFn: () => fetchPayments({ from: fromDate || undefined, to: toDate || undefined }),
   });
   const { data: lookups } = useQuery({
     queryKey: ['finance-lookups'],
@@ -30,7 +32,7 @@ export default function PaymentsPage() {
   const schema = z.object({
     customerId: z.string().min(1, 'Customer is required'),
     amount: z.coerce.number().min(1, 'Amount must be greater than 0'),
-    method: z.enum(['cash', 'bank_transfer', 'online', 'other']),
+    method: z.enum(['cash', 'bank_transfer', 'online', 'card', 'other']),
     referenceId: z.string().optional(),
     notes: z.string().optional(),
   });
@@ -68,6 +70,7 @@ export default function PaymentsPage() {
     { key: 'referenceId', label: 'Reference', render: (p: PaymentDto) => p.referenceId || '—' },
     { key: 'createdAt', label: 'Date', sortable: true, render: (p: PaymentDto) => new Date(p.createdAt).toLocaleDateString() },
   ];
+  const totalAmount = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   const onSubmit = (values: FormValues) => {
     mutation.mutate({
@@ -86,6 +89,22 @@ export default function PaymentsPage() {
         description="Record and track all payment transactions"
         actions={<Button onClick={() => setOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90 text-sm h-9 px-4"><Plus className="w-4 h-4 mr-1.5" /> Record Payment</Button>}
       />
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <Label>From</Label>
+          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>To</Label>
+          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>Total Payments</Label>
+          <div className="h-10 px-3 rounded-md border border-border flex items-center font-semibold text-accent">
+            Rs {totalAmount.toLocaleString()}
+          </div>
+        </div>
+      </div>
       {isError && (
         <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm">
           <p className="font-medium text-destructive">Could not load payments</p>
@@ -141,6 +160,7 @@ export default function PaymentsPage() {
                         <SelectItem value="cash">Cash</SelectItem>
                         <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                         <SelectItem value="online">Online</SelectItem>
+                        <SelectItem value="card">Card</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>

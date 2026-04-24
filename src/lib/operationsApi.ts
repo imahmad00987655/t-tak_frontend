@@ -32,6 +32,11 @@ export interface ReportsOverviewDto {
   outstandingDues: number;
   netProfit: number;
   monthlyExpenses: number;
+  paymentBreakdown?: {
+    cash: number;
+    online: number;
+    card: number;
+  };
 }
 
 export interface ReportsChartsDto {
@@ -64,8 +69,30 @@ export interface AuditLogDto {
   details: string;
 }
 
-export async function fetchExpenses(): Promise<ExpenseDto[]> {
-  const json = await apiFetch<{ data: ExpenseDto[] }>('/api/expenses');
+export interface ExpenseCategoryDto {
+  id: string;
+  name: string;
+}
+
+export async function fetchExpenses(filters?: { from?: string; to?: string }): Promise<ExpenseDto[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: ExpenseDto[] }>(`/api/expenses${q}`);
+  return json.data;
+}
+
+export async function fetchExpenseCategories(): Promise<ExpenseCategoryDto[]> {
+  const json = await apiFetch<{ data: ExpenseCategoryDto[] }>('/api/expenses/categories');
+  return json.data;
+}
+
+export async function createExpenseCategory(name: string): Promise<ExpenseCategoryDto> {
+  const json = await apiFetch<{ data: ExpenseCategoryDto }>('/api/expenses/categories', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
   return json.data;
 }
 
@@ -107,13 +134,21 @@ export async function createEmployee(body: {
   return json.data;
 }
 
-export async function fetchReportsOverview(): Promise<ReportsOverviewDto> {
-  const json = await apiFetch<{ data: ReportsOverviewDto }>('/api/reports/overview');
+export async function fetchReportsOverview(filters?: { from?: string; to?: string }): Promise<ReportsOverviewDto> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: ReportsOverviewDto }>(`/api/reports/overview${q}`);
   return json.data;
 }
 
-export async function fetchReportsCharts(): Promise<ReportsChartsDto> {
-  const json = await apiFetch<{ data: ReportsChartsDto }>('/api/reports/charts');
+export async function fetchReportsCharts(filters?: { from?: string; to?: string }): Promise<ReportsChartsDto> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: ReportsChartsDto }>(`/api/reports/charts${q}`);
   return json.data;
 }
 

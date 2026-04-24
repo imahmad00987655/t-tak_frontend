@@ -22,6 +22,7 @@ import DailyClosingPage from "@/pages/admin/DailyClosing";
 import BillingPage from "@/pages/admin/Billing";
 import AuditLogsPage from "@/pages/admin/AuditLogs";
 import SettingsPage from "@/pages/admin/Settings";
+import ReturnsDamagesPage from "@/pages/admin/ReturnsDamages";
 
 import WorkerDashboard from "@/pages/worker/WorkerDashboard";
 import QRScanPage from "@/pages/worker/QRScan";
@@ -96,6 +97,7 @@ function AuthenticatedAppRoutes() {
         <Route path="billing" element={<BillingPage />} />
         <Route path="audit-logs" element={<AuditLogsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="returns-damages" element={<ReturnsDamagesPage />} />
       </Route>
       <Route path="/worker" element={<WorkerDashboard />} />
       <Route path="/worker/scan" element={<QRScanPage />} />

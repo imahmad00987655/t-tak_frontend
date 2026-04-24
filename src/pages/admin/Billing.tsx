@@ -15,19 +15,22 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fetchDeliveryLookups } from '@/lib/deliveriesApi';
 import { Minus, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function BillingPage() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<InvoiceDto | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [walkInName, setWalkInName] = useState('');
   const [walkInAmount, setWalkInAmount] = useState(0);
-  const [walkInMethod, setWalkInMethod] = useState<'cash' | 'bank_transfer' | 'online' | 'other'>('cash');
+  const [walkInMethod, setWalkInMethod] = useState<'cash' | 'bank_transfer' | 'online' | 'card' | 'other'>('cash');
   const [walkInNotes, setWalkInNotes] = useState('');
   const [walkInItems, setWalkInItems] = useState<Record<string, number>>({});
   const { data: invoices = [], isLoading, isError, error } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: fetchInvoices,
+    queryKey: ['invoices', fromDate, toDate],
+    queryFn: () => fetchInvoices({ from: fromDate || undefined, to: toDate || undefined }),
   });
   const { data: settings } = useQuery({
     queryKey: ['settings'],
@@ -89,7 +92,14 @@ export default function BillingPage() {
       <PageHeader
         title="Billing & Invoices"
         description="Invoice module: generated delivery bills. Payment entries are tracked separately in Payments."
-        actions={<Button onClick={() => setWalkInOpen(true)}>Walk-in Billing</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/admin/returns-damages">Returns & Damages</Link>
+            </Button>
+            <Button onClick={() => setWalkInOpen(true)}>Walk-in Billing</Button>
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -97,6 +107,16 @@ export default function BillingPage() {
         <KPICard title="Total Billed" value={`Rs ${totalBilled.toLocaleString()}`} icon={DollarSign} />
         <KPICard title="Total Collected" value={`Rs ${totalPaid.toLocaleString()}`} icon={CheckCircle} variant="accent" />
         <KPICard title="Outstanding Dues" value={`Rs ${totalDue.toLocaleString()}`} icon={AlertCircle} variant="destructive" />
+      </div>
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>From</Label>
+          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>To</Label>
+          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        </div>
       </div>
 
       {isError && (
@@ -197,6 +217,7 @@ export default function BillingPage() {
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                     <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>

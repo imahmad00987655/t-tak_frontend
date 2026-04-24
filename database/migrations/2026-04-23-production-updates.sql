@@ -122,3 +122,43 @@ UPDATE products p
 LEFT JOIN inventory_items ii ON ii.id = p.id
 SET p.inventory_item_id = ii.id
 WHERE p.inventory_item_id IS NULL;
+
+-- payment method extension: add card support
+ALTER TABLE payments
+  MODIFY method ENUM('cash', 'bank_transfer', 'online', 'card', 'other') NOT NULL;
+
+-- dynamic expense categories
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(128) NOT NULL,
+  status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_expense_categories_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO expense_categories (name, status)
+SELECT DISTINCT category, 'active'
+FROM expenses
+WHERE category IS NOT NULL AND TRIM(category) <> '';
+
+-- returns and damages
+CREATE TABLE IF NOT EXISTS returns_damages (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  entry_type ENUM('return', 'damage') NOT NULL,
+  customer_id INT UNSIGNED NULL,
+  walk_in_name VARCHAR(255) NULL,
+  product_id INT UNSIGNED NOT NULL,
+  quantity INT UNSIGNED NOT NULL,
+  unit_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  adjustment_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  reason VARCHAR(255) NULL,
+  notes VARCHAR(512) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_returns_damages_created (created_at),
+  KEY idx_returns_damages_customer (customer_id),
+  KEY idx_returns_damages_product (product_id),
+  CONSTRAINT fk_returns_damages_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL,
+  CONSTRAINT fk_returns_damages_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

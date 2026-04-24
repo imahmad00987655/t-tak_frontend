@@ -18,6 +18,7 @@ import { fetchFinanceLookups, fetchWallets, rechargeWallet, type WalletCustomerD
 export default function WalletsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
   const { data: wallets = [], isLoading, isError, error } = useQuery({
     queryKey: ['wallets'],
     queryFn: fetchWallets,
@@ -26,11 +27,19 @@ export default function WalletsPage() {
     queryKey: ['finance-lookups'],
     queryFn: fetchFinanceLookups,
   });
+  const filteredCustomers = (lookups?.customers ?? []).filter((c) => {
+    const needle = customerSearch.trim().toLowerCase();
+    if (!needle) return true;
+    return (
+      c.name.toLowerCase().includes(needle) ||
+      c.customerId.toLowerCase().includes(needle)
+    );
+  });
 
   const schema = z.object({
     customerId: z.string().min(1, 'Customer is required'),
     amount: z.coerce.number().min(1, 'Amount must be greater than 0'),
-    method: z.enum(['cash', 'bank_transfer', 'online', 'other']),
+    method: z.enum(['cash', 'bank_transfer', 'online', 'card', 'other']),
     notes: z.string().optional(),
   });
   type FormValues = z.infer<typeof schema>;
@@ -104,6 +113,11 @@ export default function WalletsPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1.5">
               <Label>Customer *</Label>
+              <Input
+                placeholder="Search customer by name or ID"
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+              />
               <Controller
                 control={control}
                 name="customerId"
@@ -111,7 +125,7 @@ export default function WalletsPage() {
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
                     <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                     <SelectContent>
-                      {(lookups?.customers ?? []).map(c => (
+                      {filteredCustomers.map(c => (
                         <SelectItem key={c.id} value={c.id}>{c.name} — Rs {c.walletBalance.toLocaleString()}</SelectItem>
                       ))}
                     </SelectContent>
@@ -138,6 +152,7 @@ export default function WalletsPage() {
                         <SelectItem value="cash">Cash</SelectItem>
                         <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                         <SelectItem value="online">Online</SelectItem>
+                        <SelectItem value="card">Card</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>

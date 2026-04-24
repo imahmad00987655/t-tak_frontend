@@ -5,13 +5,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { closeDay, fetchDailyClosingSummary } from '@/lib/operationsApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useState } from 'react';
 
 export default function DailyClosingPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [selectedDate, setSelectedDate] = useState('');
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['daily-closing-summary'],
-    queryFn: () => fetchDailyClosingSummary(),
+    queryKey: ['daily-closing-summary', selectedDate],
+    queryFn: () => fetchDailyClosingSummary(selectedDate || undefined),
   });
 
   const closeMutation = useMutation({
@@ -35,6 +39,10 @@ export default function DailyClosingPage() {
   return (
     <div>
       <PageHeader title="Daily Closing" description={`Closing report for ${data?.date || 'today'}`} />
+      <div className="mb-4 max-w-xs space-y-1">
+        <Label>Select Date</Label>
+        <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+      </div>
       {isError && (
         <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm">
           <p className="font-medium text-destructive">Could not load closing summary</p>

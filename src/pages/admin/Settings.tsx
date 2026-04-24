@@ -254,8 +254,8 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="promotions" className="space-y-5">
-          <SettingCard icon={CreditCard} title="Promotions & Packages" description="Configure offers used in billing and invoices">
-            <SettingRow label="Buy X bottles, get Y free" description="Enable quantity based package offer">
+          <SettingCard icon={CreditCard} title="Promotions & Packages" description="Configure product-type based offers used in billing and invoices">
+            <SettingRow label="Buy X units, get Y free" description="Enable quantity based package offer for selected product types">
               <Switch
                 checked={local.promotions.buyXGetYEnabled}
                 onCheckedChange={(v) => setLocal((p) => ({ ...p, promotions: { ...p.promotions, buyXGetYEnabled: v } }))}

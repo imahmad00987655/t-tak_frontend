@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Users, Truck, Package, Warehouse, CreditCard,
   Receipt, UserCog, BarChart3, Settings, FileText, CalendarCheck,
-  ChevronLeft, ChevronRight, Droplets, MapPin, Wallet, TrendingDown
+  ChevronLeft, ChevronRight, Droplets, MapPin, Wallet, TrendingDown, Undo2
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
   { label: 'Payments', path: '/admin/payments', icon: Receipt },
   { label: 'Wallets', path: '/admin/wallets', icon: Wallet },
   { label: 'Expenses', path: '/admin/expenses', icon: TrendingDown },
+  { label: 'Returns & Damages', path: '/admin/returns-damages', icon: Undo2 },
   { label: 'Employees', path: '/admin/employees', icon: UserCog },
   { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
   { label: 'Daily Closing', path: '/admin/daily-closing', icon: CalendarCheck },

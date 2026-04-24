@@ -21,7 +21,7 @@ export interface PaymentDto {
   customerId: string;
   customerName: string;
   amount: number;
-  method: 'cash' | 'bank_transfer' | 'online' | 'other';
+  method: 'cash' | 'bank_transfer' | 'online' | 'card' | 'other';
   referenceId?: string;
   notes?: string;
   createdAt: string;
@@ -58,8 +58,12 @@ export async function fetchFinanceLookups(): Promise<{ customers: FinanceCustome
   return json.data;
 }
 
-export async function fetchPayments(): Promise<PaymentDto[]> {
-  const json = await apiFetch<{ data: PaymentDto[] }>('/api/payments');
+export async function fetchPayments(filters?: { from?: string; to?: string }): Promise<PaymentDto[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: PaymentDto[] }>(`/api/payments${q}`);
   return json.data;
 }
 
@@ -68,7 +72,7 @@ export async function recordPayment(body: {
   walkInName?: string;
   amount: number;
   items?: Array<{ productId: string; quantity: number; unitPrice?: number }>;
-  method: 'cash' | 'bank_transfer' | 'online' | 'other';
+  method: 'cash' | 'bank_transfer' | 'online' | 'card' | 'other';
   referenceId?: string;
   notes?: string;
   actor?: string;
@@ -88,7 +92,7 @@ export async function fetchWallets(): Promise<WalletCustomerDto[]> {
 export async function rechargeWallet(body: {
   customerId: string;
   amount: number;
-  method?: 'cash' | 'bank_transfer' | 'online' | 'other';
+  method?: 'cash' | 'bank_transfer' | 'online' | 'card' | 'other';
   referenceId?: string;
   notes?: string;
 }) {
@@ -99,7 +103,52 @@ export async function rechargeWallet(body: {
   return json.data;
 }
 
-export async function fetchInvoices(): Promise<InvoiceDto[]> {
-  const json = await apiFetch<{ data: InvoiceDto[] }>('/api/billing/invoices');
+export async function fetchInvoices(filters?: { from?: string; to?: string }): Promise<InvoiceDto[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: InvoiceDto[] }>(`/api/billing/invoices${q}`);
+  return json.data;
+}
+
+export interface ReturnDamageDto {
+  id: string;
+  entryType: 'return' | 'damage';
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  adjustmentAmount: number;
+  reason: string;
+  notes: string;
+  createdAt: string;
+}
+
+export async function fetchReturnsDamages(filters?: { from?: string; to?: string }): Promise<ReturnDamageDto[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: ReturnDamageDto[] }>(`/api/returns-damages${q}`);
+  return json.data;
+}
+
+export async function createReturnDamage(body: {
+  entryType: 'return' | 'damage';
+  customerId: string;
+  walkInName?: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  reason?: string;
+  notes?: string;
+}) {
+  const json = await apiFetch<{ data: { id: string } }>('/api/returns-damages', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
   return json.data;
 }

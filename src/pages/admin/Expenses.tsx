@@ -14,6 +14,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createExpense, fetchExpenses, type ExpenseDto } from '@/lib/operationsApi';
+import { createExpenseCategory, fetchExpenseCategories } from '@/lib/operationsApi';
 import { useAuth } from '@/contexts/AuthContext';
 
 const expenseSchema = z.object({
@@ -29,10 +30,17 @@ export default function ExpensesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [newCategory, setNewCategory] = useState('');
 
   const { data: expenses = [], isLoading, isError, error } = useQuery({
-    queryKey: ['expenses'],
-    queryFn: fetchExpenses,
+    queryKey: ['expenses', fromDate, toDate],
+    queryFn: () => fetchExpenses({ from: fromDate || undefined, to: toDate || undefined }),
+  });
+  const { data: categories = [] } = useQuery({
+    queryKey: ['expense-categories'],
+    queryFn: fetchExpenseCategories,
   });
 
   const { register, control, handleSubmit, reset, formState: { errors } } = useForm<ExpenseFormValues>({
@@ -63,6 +71,15 @@ export default function ExpensesPage() {
     },
     onError: (e: Error) => toast.error(e.message || 'Could not record expense'),
   });
+  const createCategoryMutation = useMutation({
+    mutationFn: createExpenseCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expense-categories'] });
+      toast.success('Category added');
+      setNewCategory('');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not add category'),
+  });
 
   const columns = [
     { key: 'id', label: 'ID', render: (e: ExpenseDto) => <span className="font-mono text-xs">{e.id}</span> },
@@ -89,6 +106,16 @@ export default function ExpensesPage() {
         description="Track business expenses and operational costs"
         actions={<Button onClick={() => setOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90 text-sm h-9 px-4"><Plus className="w-4 h-4 mr-1.5" /> Add Expense</Button>}
       />
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>From</Label>
+          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>To</Label>
+          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        </div>
+      </div>
 
       {isError && (
         <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm">
@@ -119,17 +146,31 @@ export default function ExpensesPage() {
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Fuel">Fuel</SelectItem>
-                        <SelectItem value="Maintenance">Maintenance</SelectItem>
-                        <SelectItem value="Utilities">Utilities</SelectItem>
-                        <SelectItem value="Salaries">Salaries</SelectItem>
-                        <SelectItem value="Packaging">Packaging</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
                 />
                 {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Input
+                    placeholder="New category"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => createCategoryMutation.mutate(newCategory)}
+                    disabled={createCategoryMutation.isPending || !newCategory.trim()}
+                  >
+                    Add
+                  </Button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Amount (Rs) *</Label>
