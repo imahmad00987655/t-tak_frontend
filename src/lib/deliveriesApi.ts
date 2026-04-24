@@ -20,6 +20,8 @@ export async function fetchDeliveryLookups(): Promise<DeliveryLookupData> {
 export async function createDelivery(body: {
   customerId: string;
   workerId: string;
+  requireQrVerification?: boolean;
+  qrToken?: string;
   status: string;
   paymentStatus: string;
   walletDeduction?: number;

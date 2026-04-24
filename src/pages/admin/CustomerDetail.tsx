@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockDeliveries } from '@/data/mockData';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -8,13 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ArrowLeft, Edit, QrCode, Wallet, Truck, Phone, MapPin, Calendar } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { fetchCustomer, fetchWalletTransactions, updateCustomer, type CustomerDto } from '@/lib/customersApi';
+import { fetchDeliveries } from '@/lib/deliveriesApi';
 import { toast } from 'sonner';
 import CustomerQrCardDialog from '@/components/customers/CustomerQrCardDialog';
 
@@ -60,6 +60,10 @@ export default function CustomerDetail() {
     queryKey: ['wallet-txns', id],
     queryFn: () => fetchWalletTransactions(id!),
     enabled: !!id && !!customer,
+  });
+  const { data: deliveryRows = [] } = useQuery({
+    queryKey: ['deliveries'],
+    queryFn: fetchDeliveries,
   });
 
   const updateMut = useMutation({
@@ -133,7 +137,7 @@ export default function CustomerDetail() {
     );
   }
 
-  const deliveries = mockDeliveries.filter((d) => d.customerId === id);
+  const deliveries = deliveryRows.filter((d) => d.customerId === id);
 
   const onEditSubmit = (values: EditValues) => {
     updateMut.mutate({
@@ -190,6 +194,7 @@ export default function CustomerDetail() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit customer</DialogTitle>
+            <DialogDescription>Update customer profile details.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onEditSubmit)} className="space-y-3">
             <div className="space-y-1.5">
@@ -402,14 +407,6 @@ export default function CustomerDetail() {
               <Wallet className="w-4 h-4 text-muted-foreground" />
             </div>
             <p className="text-3xl font-semibold text-accent">Rs {customer.walletBalance.toLocaleString()}</p>
-            <Button
-              variant="outline"
-              className="mt-3 h-8 text-xs w-full"
-              type="button"
-              onClick={() => toast.message('Wallet top-ups can be wired to a payment endpoint in a later iteration.')}
-            >
-              + Add Balance
-            </Button>
           </div>
           <div className="bg-card border border-border rounded-md p-5">
             <h3 className="text-sm font-semibold mb-3">Recent Transactions</h3>
@@ -439,7 +436,7 @@ export default function CustomerDetail() {
             <Truck className="w-4 h-4 text-muted-foreground" />
           </div>
           {deliveries.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No deliveries recorded (demo data)</p>
+            <p className="text-xs text-muted-foreground">No deliveries recorded</p>
           ) : (
             <div className="space-y-3">
               {deliveries.map((d) => (

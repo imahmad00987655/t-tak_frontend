@@ -13,6 +13,8 @@ import { fetchSettings } from '@/lib/settingsApi';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { fetchDeliveryLookups } from '@/lib/deliveriesApi';
+import { Minus, Plus } from 'lucide-react';
 
 export default function BillingPage() {
   const queryClient = useQueryClient();
@@ -22,6 +24,7 @@ export default function BillingPage() {
   const [walkInAmount, setWalkInAmount] = useState(0);
   const [walkInMethod, setWalkInMethod] = useState<'cash' | 'bank_transfer' | 'online' | 'other'>('cash');
   const [walkInNotes, setWalkInNotes] = useState('');
+  const [walkInItems, setWalkInItems] = useState<Record<string, number>>({});
   const { data: invoices = [], isLoading, isError, error } = useQuery({
     queryKey: ['invoices'],
     queryFn: fetchInvoices,
@@ -30,16 +33,24 @@ export default function BillingPage() {
     queryKey: ['settings'],
     queryFn: fetchSettings,
   });
+  const { data: deliveryLookups } = useQuery({
+    queryKey: ['delivery-lookups'],
+    queryFn: fetchDeliveryLookups,
+  });
+  const walkInProducts = (deliveryLookups?.products ?? []).filter((p) => p.status === 'active' && p.defaultPrice > 0);
   const walkInMutation = useMutation({
     mutationFn: recordPayment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-lookups'] });
       toast.success('Walk-in transaction recorded');
       setWalkInOpen(false);
       setWalkInName('');
       setWalkInAmount(0);
       setWalkInMethod('cash');
       setWalkInNotes('');
+      setWalkInItems({});
     },
     onError: (e: Error) => toast.error(e.message || 'Could not record walk-in payment'),
   });
@@ -47,6 +58,20 @@ export default function BillingPage() {
   const totalBilled = invoices.reduce((s, i) => s + i.totalAmount, 0);
   const totalPaid = invoices.reduce((s, i) => s + i.walletDeduction, 0);
   const totalDue = invoices.reduce((s, i) => s + i.amountDue, 0);
+  const walkInComputedTotal = Object.entries(walkInItems).reduce((sum, [productId, qty]) => {
+    const product = walkInProducts.find((p) => p.id === productId);
+    return sum + (product?.defaultPrice || 0) * qty;
+  }, 0);
+
+  const updateWalkInQty = (productId: string, delta: number) => {
+    setWalkInItems((prev) => {
+      const next = { ...prev };
+      const value = (next[productId] || 0) + delta;
+      if (value <= 0) delete next[productId];
+      else next[productId] = value;
+      return next;
+    });
+  };
 
   const columns = [
     { key: 'id', label: 'Invoice', render: (inv: InvoiceDto) => <span className="font-mono text-xs font-medium">{inv.id}</span> },
@@ -61,7 +86,11 @@ export default function BillingPage() {
 
   return (
     <div>
-      <PageHeader title="Billing & Invoices" description="Invoice module: generated delivery bills. Payment entries are tracked separately in Payments." />
+      <PageHeader
+        title="Billing & Invoices"
+        description="Invoice module: generated delivery bills. Payment entries are tracked separately in Payments."
+        actions={<Button onClick={() => setWalkInOpen(true)}>Walk-in Billing</Button>}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <KPICard title="Total Invoices" value={invoices.length} icon={FileText} />
@@ -91,10 +120,6 @@ export default function BillingPage() {
           )}
         />
       )}
-      <div className="mt-4 flex justify-end">
-        <Button onClick={() => setWalkInOpen(true)}>Walk-in Billing</Button>
-      </div>
-
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -181,17 +206,49 @@ export default function BillingPage() {
               <Label>Notes</Label>
               <Input value={walkInNotes} onChange={(e) => setWalkInNotes(e.target.value)} placeholder="Optional notes" />
             </div>
+            <div className="space-y-2">
+              <Label>Products</Label>
+              <div className="space-y-2 max-h-52 overflow-auto">
+                {walkInProducts.map((product) => {
+                  const qty = walkInItems[product.id] || 0;
+                  return (
+                    <div key={product.id} className="border border-border rounded-md px-3 py-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">Rs {product.defaultPrice}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateWalkInQty(product.id, -1)}>
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <span className="w-6 text-center text-sm">{qty}</span>
+                        <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateWalkInQty(product.id, 1)}>
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-sm font-medium text-right">Total: Rs {walkInComputedTotal.toLocaleString()}</p>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setWalkInOpen(false)}>Cancel</Button>
               <Button
                 onClick={() => walkInMutation.mutate({
                   customerId: 'walk-in',
                   walkInName: walkInName || 'Walk-in Customer',
-                  amount: walkInAmount,
+                  amount: walkInComputedTotal || walkInAmount,
+                  items: Object.entries(walkInItems)
+                    .filter(([, quantity]) => quantity > 0)
+                    .map(([productId, quantity]) => {
+                      const product = walkInProducts.find((p) => p.id === productId);
+                      return { productId, quantity, unitPrice: product?.defaultPrice };
+                    }),
                   method: walkInMethod,
                   notes: walkInNotes || undefined,
                 })}
-                disabled={walkInMutation.isPending || walkInAmount <= 0}
+                disabled={walkInMutation.isPending || (walkInComputedTotal <= 0 && walkInAmount <= 0)}
               >
                 {walkInMutation.isPending ? 'Saving...' : 'Record'}
               </Button>

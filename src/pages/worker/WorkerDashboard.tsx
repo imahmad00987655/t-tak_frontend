@@ -62,7 +62,13 @@ export default function WorkerDashboard() {
           <h2 className="text-sm font-semibold mb-3">Today's Deliveries</h2>
           <div className="space-y-2">
             {myDeliveries.map((d) => (
-              <Link to={`/worker/quick-deliver/${d.customerId}`} key={d.id} className="block bg-card border border-border rounded-lg p-4 active:bg-muted">
+              <Link
+                to={`/worker/scan?customerId=${encodeURIComponent(d.customerId)}&returnTo=${encodeURIComponent(
+                  `/worker/quick-deliver/${d.customerId}`
+                )}`}
+                key={d.id}
+                className="block bg-card border border-border rounded-lg p-4 active:bg-muted"
+              >
                 <div className="flex justify-between items-start mb-1">
                   <span className="font-medium text-sm">{d.customerName}</span>
                   <StatusBadge status={d.status as any} />

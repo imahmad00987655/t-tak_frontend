@@ -8,6 +8,13 @@ export interface FinanceCustomerLookup {
   walletBalance: number;
 }
 
+export interface FinanceProductLookup {
+  id: string;
+  name: string;
+  defaultPrice: number;
+  status: string;
+}
+
 export interface PaymentDto {
   id: string;
   dbId: string;
@@ -44,8 +51,10 @@ export interface InvoiceDto {
   date: string;
 }
 
-export async function fetchFinanceLookups(): Promise<{ customers: FinanceCustomerLookup[] }> {
-  const json = await apiFetch<{ data: { customers: FinanceCustomerLookup[]; supportsWalkIn?: boolean } }>('/api/lookups/finance-form');
+export async function fetchFinanceLookups(): Promise<{ customers: FinanceCustomerLookup[]; products: FinanceProductLookup[] }> {
+  const json = await apiFetch<{
+    data: { customers: FinanceCustomerLookup[]; products: FinanceProductLookup[]; supportsWalkIn?: boolean };
+  }>('/api/lookups/finance-form');
   return json.data;
 }
 
@@ -58,6 +67,7 @@ export async function recordPayment(body: {
   customerId: string;
   walkInName?: string;
   amount: number;
+  items?: Array<{ productId: string; quantity: number; unitPrice?: number }>;
   method: 'cash' | 'bank_transfer' | 'online' | 'other';
   referenceId?: string;
   notes?: string;

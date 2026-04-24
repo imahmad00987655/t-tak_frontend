@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Camera, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fetchCustomers, fetchPublicCustomerByToken } from '@/lib/customersApi';
@@ -18,11 +18,13 @@ function readTokenFromQrValue(value: string): string | null {
     if (direct?.[1]) return direct[1];
     if (/^[0-9a-f-]{20,}$/i.test(raw)) return raw;
     return null;
+    
   }
 }
 
 export default function QRScanPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [manualId, setManualId] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
@@ -30,6 +32,23 @@ export default function QRScanPage() {
   const [isResolving, setIsResolving] = useState(false);
   const handledScanRef = useRef(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const expectedCustomerId = searchParams.get('customerId')?.trim() || '';
+  const returnTo = searchParams.get('returnTo')?.trim() || '';
+
+  const goAfterVerify = useCallback(
+    (nextCustomerId: string, qrToken?: string) => {
+      if (returnTo) {
+        const separator = returnTo.includes('?') ? '&' : '?';
+        const target = `${returnTo}${separator}qrVerified=1${qrToken ? `&qrToken=${encodeURIComponent(qrToken)}` : ''}`;
+        navigate(target);
+        return;
+      }
+      navigate(
+        `/worker/quick-deliver/${nextCustomerId}?qrVerified=1${qrToken ? `&qrToken=${encodeURIComponent(qrToken)}` : ''}`
+      );
+    },
+    [navigate, returnTo]
+  );
 
   const goToCustomerByLookup = useCallback(async (value: string) => {
     const needle = value.trim().toLowerCase();
@@ -42,9 +61,10 @@ export default function QRScanPage() {
         customer.phone.toLowerCase() === needle
     );
     if (!matched) return false;
-    navigate(`/worker/quick-deliver/${matched.id}`);
+    if (expectedCustomerId && String(matched.id) !== expectedCustomerId) return false;
+    goAfterVerify(String(matched.id));
     return true;
-  }, [navigate]);
+  }, [expectedCustomerId, goAfterVerify]);
 
   const handleResolvedValue = useCallback(async (value: string) => {
     if (handledScanRef.current || isResolving) return;
@@ -54,7 +74,16 @@ export default function QRScanPage() {
       const token = readTokenFromQrValue(value);
       if (token) {
         const customer = await fetchPublicCustomerByToken(token);
-        navigate(`/worker/quick-deliver/${customer.id}`);
+        if (expectedCustomerId && String(customer.id) !== expectedCustomerId) {
+          toast({
+            title: 'Wrong customer QR',
+            description: 'Scan the assigned customer QR for this delivery.',
+            variant: 'destructive',
+          });
+          handledScanRef.current = false;
+          return;
+        }
+        goAfterVerify(String(customer.id), token);
         return;
       }
       const found = await goToCustomerByLookup(value);
@@ -72,7 +101,7 @@ export default function QRScanPage() {
     } finally {
       setIsResolving(false);
     }
-  }, [goToCustomerByLookup, isResolving, navigate, toast]);
+  }, [expectedCustomerId, goAfterVerify, goToCustomerByLookup, isResolving, toast]);
 
   const stopCamera = useCallback(async () => {
     if (scannerRef.current) {

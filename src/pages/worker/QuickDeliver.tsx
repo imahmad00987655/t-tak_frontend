@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, Minus, Plus, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,7 @@ function resolveWorkerId(userId?: string) {
 export default function QuickDeliverPage() {
   const { customerId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -37,6 +38,8 @@ export default function QuickDeliverPage() {
 
   const [items, setItems] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState('');
+  const isQrVerified = searchParams.get('qrVerified') === '1';
+  const qrToken = searchParams.get('qrToken') || '';
 
   const createMutation = useMutation({
     mutationFn: createDelivery,
@@ -81,6 +84,14 @@ export default function QuickDeliverPage() {
   const amountDue = Math.max(0, total - customer.walletBalance);
 
   const handleConfirm = () => {
+    if (!isQrVerified || !qrToken) {
+      toast({
+        title: 'QR scan required',
+        description: 'Scan customer QR first before adding delivery items.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (Object.keys(items).length === 0) {
       toast({ title: 'Select at least one product', variant: 'destructive' });
       return;
@@ -110,6 +121,8 @@ export default function QuickDeliverPage() {
     createMutation.mutate({
       customerId: customer.id,
       workerId,
+      requireQrVerification: true,
+      qrToken,
       status: amountDue > 0 ? 'partially_delivered' : 'delivered',
       paymentStatus: amountDue > 0 ? 'partial' : 'paid',
       walletDeduction: Math.min(total, customer.walletBalance),
@@ -145,7 +158,29 @@ export default function QuickDeliverPage() {
           </div>
         </div>
 
+        {!isQrVerified && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+            <p className="font-medium">Scan required before delivery</p>
+            <p className="text-muted-foreground mt-1">You must scan this customer's QR before product entry.</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3"
+              onClick={() =>
+                navigate(
+                  `/worker/scan?customerId=${encodeURIComponent(customer.id)}&returnTo=${encodeURIComponent(
+                    `/worker/quick-deliver/${customer.id}`
+                  )}`
+                )
+              }
+            >
+              Scan Customer QR
+            </Button>
+          </div>
+        )}
+
         {/* Products */}
+        {isQrVerified && (
         <div>
           <h3 className="text-sm font-semibold mb-2">Select Products</h3>
           <div className="space-y-2">
@@ -171,8 +206,10 @@ export default function QuickDeliverPage() {
             })}
           </div>
         </div>
+        )}
 
         {/* Notes */}
+        {isQrVerified && (
         <div>
           <label className="text-xs text-muted-foreground">Delivery Notes (optional)</label>
           <textarea
@@ -182,9 +219,10 @@ export default function QuickDeliverPage() {
             className="w-full h-16 px-3 py-2 mt-1 rounded-lg border border-input bg-background text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
+        )}
 
         {/* Summary */}
-        {total > 0 && (
+        {isQrVerified && total > 0 && (
           <div className="bg-card border border-border rounded-lg p-4 space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-semibold">Rs {total}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Wallet Deduction</span><span className="text-accent">-Rs {Math.min(total, customer.walletBalance)}</span></div>
@@ -199,7 +237,7 @@ export default function QuickDeliverPage() {
         <Button
           onClick={handleConfirm}
           className="w-full h-14 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-semibold"
-          disabled={Object.keys(items).length === 0 || createMutation.isPending}
+          disabled={!isQrVerified || Object.keys(items).length === 0 || createMutation.isPending}
         >
           <Check className="w-5 h-5 mr-2" /> Confirm Delivery · Rs {total}
         </Button>

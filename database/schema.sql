@@ -140,13 +140,15 @@ CREATE TABLE products (
   description VARCHAR(512) NULL,
   unit VARCHAR(32) NOT NULL DEFAULT 'unit',
   default_price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+  inventory_item_id INT UNSIGNED NULL,
   category VARCHAR(128) NOT NULL DEFAULT 'General',
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   stock_quantity INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_products_status (status)
+  KEY idx_products_status (status),
+  KEY idx_products_inventory_item (inventory_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
@@ -337,6 +339,10 @@ CREATE TABLE inventory_transactions (
   CONSTRAINT fk_inventory_txn_item FOREIGN KEY (inventory_item_id) REFERENCES inventory_items (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE products
+  ADD CONSTRAINT fk_products_inventory_item
+  FOREIGN KEY (inventory_item_id) REFERENCES inventory_items (id) ON DELETE SET NULL;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ---------------------------------------------------------------------------
@@ -373,11 +379,11 @@ INSERT INTO users (name, email, phone, password_hash, role, status, employee_id,
   ('Imran Khan', 'worker@waterdist.pk', '0301-1111111', 'worker123', 'field_worker', 'active', 1, NULL),
   ('Ahmad Hassan', 'client@waterdist.pk', '0301-1234567', 'client123', 'client', 'active', NULL, 1);
 
-INSERT INTO products (id, name, description, unit, default_price, category, status, stock_quantity) VALUES
-  (1, '19L Water Can', 'Standard 19 liter filtered water can', 'can', 80.00, 'Water', 'active', 450),
-  (2, '10L Water Bottle', '10 liter filtered water bottle', 'bottle', 50.00, 'Water', 'active', 300),
-  (3, '1.5L Mineral Water', '1.5 liter mineral water bottle', 'bottle', 30.00, 'Water', 'active', 1200),
-  (4, '500ml Water Pack (12)', 'Pack of 12 x 500ml bottles', 'pack', 180.00, 'Water', 'active', 200);
+INSERT INTO products (id, name, description, unit, default_price, inventory_item_id, category, status, stock_quantity) VALUES
+  (1, '19L Water Can', 'Standard 19 liter filtered water can', 'can', 80.00, 1, 'Water', 'active', 450),
+  (2, '10L Water Bottle', '10 liter filtered water bottle', 'bottle', 50.00, 2, 'Water', 'active', 300),
+  (3, '1.5L Mineral Water', '1.5 liter mineral water bottle', 'bottle', 30.00, 3, 'Water', 'active', 1200),
+  (4, '500ml Water Pack (12)', 'Pack of 12 x 500ml bottles', 'pack', 180.00, 3, 'Water', 'active', 200);
 
 INSERT INTO wallet_transactions (customer_id, type, amount, description, balance_after)
 SELECT id, 'credit', wallet_balance, 'Opening balance / seed', wallet_balance FROM customers;

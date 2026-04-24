@@ -78,3 +78,47 @@ INSERT INTO app_settings (setting_key, setting_value) VALUES
   ('promo_spend_amount', '0'),
   ('promo_spend_free_qty', '0')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
+
+-- Product -> inventory linkage for automatic stock deductions on delivery/sales
+SET @has_inventory_item_id := (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'inventory_item_id'
+);
+SET @sql := IF(
+  @has_inventory_item_id = 0,
+  'ALTER TABLE products ADD COLUMN inventory_item_id INT UNSIGNED NULL AFTER default_price',
+  'SELECT "products.inventory_item_id already exists"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_inventory_idx := (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND INDEX_NAME = 'idx_products_inventory_item'
+);
+SET @sql := IF(
+  @has_inventory_idx = 0,
+  'ALTER TABLE products ADD INDEX idx_products_inventory_item (inventory_item_id)',
+  'SELECT "idx_products_inventory_item already exists"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_fk_products_inventory := (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'products'
+    AND CONSTRAINT_NAME = 'fk_products_inventory_item'
+);
+SET @sql := IF(
+  @has_fk_products_inventory = 0,
+  'ALTER TABLE products ADD CONSTRAINT fk_products_inventory_item FOREIGN KEY (inventory_item_id) REFERENCES inventory_items (id) ON DELETE SET NULL',
+  'SELECT "fk_products_inventory_item already exists"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+UPDATE products p
+LEFT JOIN inventory_items ii ON ii.id = p.id
+SET p.inventory_item_id = ii.id
+WHERE p.inventory_item_id IS NULL;
