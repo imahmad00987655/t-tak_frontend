@@ -18,6 +18,7 @@ import { fetchFinanceLookups, fetchWallets, rechargeWallet, type WalletCustomerD
 export default function WalletsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState<WalletCustomerDto | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const { data: wallets = [], isLoading, isError, error } = useQuery({
     queryKey: ['wallets'],
@@ -101,7 +102,16 @@ export default function WalletsPage() {
       {isLoading ? (
         <div className="rounded-md border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading wallets...</div>
       ) : (
-        <DataTable data={wallets} columns={columns} searchKeys={['name', 'customerId', 'phone']} />
+        <DataTable
+          data={wallets}
+          columns={columns}
+          searchKeys={['name', 'customerId', 'phone']}
+          actions={(c: WalletCustomerDto) => (
+            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedWallet(c)}>
+              View
+            </Button>
+          )}
+        />
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -169,6 +179,22 @@ export default function WalletsPage() {
               <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving...' : 'Recharge Wallet'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!selectedWallet} onOpenChange={() => setSelectedWallet(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Wallet Details</DialogTitle>
+            <DialogDescription>{selectedWallet?.name}</DialogDescription>
+          </DialogHeader>
+          {selectedWallet && (
+            <div className="space-y-2 text-sm">
+              <div><span className="text-muted-foreground">Customer ID:</span> {selectedWallet.customerId}</div>
+              <div><span className="text-muted-foreground">Phone:</span> {selectedWallet.phone}</div>
+              <div><span className="text-muted-foreground">Area:</span> {selectedWallet.area}</div>
+              <div><span className="text-muted-foreground">Balance:</span> Rs {selectedWallet.walletBalance.toLocaleString()}</div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

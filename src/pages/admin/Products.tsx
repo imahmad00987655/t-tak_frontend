@@ -20,6 +20,7 @@ import type { Product } from '@/types';
 export default function ProductsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const { data: products = [], isLoading, isError, error } = useQuery({
     queryKey: ['products'],
     queryFn: fetchProducts,
@@ -68,6 +69,8 @@ export default function ProductsPage() {
     { key: 'stockQuantity', label: 'Stock', sortable: true, render: (p: Product) => <span className={p.stockQuantity < 50 ? 'text-destructive font-medium' : ''}>{p.stockQuantity}</span> },
     { key: 'status', label: 'Status', render: (p: Product) => <StatusBadge status={p.status} /> },
   ];
+  const categoryOptions = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
+  const filteredProducts = products.filter((p) => statusFilter === 'all' || p.status === statusFilter);
 
   const onSubmit = (values: ProductFormValues) => {
     createMutation.mutate({
@@ -97,7 +100,14 @@ export default function ProductsPage() {
       {isLoading ? (
         <div className="rounded-md border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading products...</div>
       ) : (
-        <DataTable data={products} columns={columns} searchKeys={['name', 'category']} />
+        <>
+          <div className="mb-3 flex gap-2">
+            <Button type="button" variant={statusFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('all')}>All</Button>
+            <Button type="button" variant={statusFilter === 'active' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('active')}>Active</Button>
+            <Button type="button" variant={statusFilter === 'inactive' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('inactive')}>Inactive</Button>
+          </div>
+          <DataTable data={filteredProducts} columns={columns} searchKeys={['name', 'category']} />
+        </>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -119,21 +129,12 @@ export default function ProductsPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label>Category *</Label>
-                <Controller
-                  control={control}
-                  name="category"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Water">Water</SelectItem>
-                        <SelectItem value="Returns">Returns</SelectItem>
-                        <SelectItem value="Packaging">Packaging</SelectItem>
-                        <SelectItem value="Consumables">Consumables</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
+                <Input list="product-categories" placeholder="e.g. Water, Packaging, Service" {...register('category')} />
+                <datalist id="product-categories">
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category} />
+                  ))}
+                </datalist>
               </div>
               <div className="space-y-1.5">
                 <Label>Unit *</Label>

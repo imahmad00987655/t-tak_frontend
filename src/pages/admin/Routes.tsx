@@ -29,6 +29,7 @@ export default function RoutesPage() {
   const routeSchema = z.object({
     name: z.string().min(1, 'Route name is required'),
     area: z.string().min(1, 'Area is required'),
+    zone: z.string().optional(),
     workerId: z.string().optional(),
   });
   type RouteFormValues = z.infer<typeof routeSchema>;
@@ -38,6 +39,7 @@ export default function RoutesPage() {
     defaultValues: {
       name: '',
       area: '',
+      zone: '',
       workerId: '',
     },
   });
@@ -46,6 +48,7 @@ export default function RoutesPage() {
     mutationFn: (values: RouteFormValues) => createRoute({
       name: values.name,
       area: values.area,
+      zone: values.zone || undefined,
       workerIds: values.workerId ? [values.workerId] : [],
     }),
     onSuccess: () => {
@@ -60,6 +63,7 @@ export default function RoutesPage() {
   const columns = [
     { key: 'name', label: 'Route', sortable: true, render: (r: RouteDto) => <span className="font-medium">{r.name}</span> },
     { key: 'area', label: 'Area', sortable: true },
+    { key: 'zone', label: 'Zone', sortable: true, render: (r: RouteDto) => r.zone || '—' },
     { key: 'customerCount', label: 'Customers', sortable: true },
     { key: 'assignedWorkers', label: 'Workers', render: (r: RouteDto) => {
       return <span className="text-xs">{r.workerNames.length ? r.workerNames.join(', ') : '-'}</span>;
@@ -96,7 +100,7 @@ export default function RoutesPage() {
             <DialogDescription>Create a new delivery route and assign workers.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label>Route Name *</Label>
                 <Input placeholder="e.g. Route F1" {...register('name')} />
@@ -106,6 +110,10 @@ export default function RoutesPage() {
                 <Label>Area *</Label>
                 <Input placeholder="e.g. Garden Town" {...register('area')} />
                 {errors.area && <p className="text-xs text-destructive">{errors.area.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Zone</Label>
+                <Input placeholder="e.g. Central" {...register('zone')} />
               </div>
             </div>
             <div className="space-y-1.5">

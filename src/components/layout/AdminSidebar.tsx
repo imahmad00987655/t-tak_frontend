@@ -5,7 +5,6 @@ import {
   Receipt, UserCog, BarChart3, Settings, FileText, CalendarCheck,
   ChevronLeft, ChevronRight, Droplets, MapPin, Wallet, TrendingDown, Undo2
 } from 'lucide-react';
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -34,8 +33,13 @@ const navItems: NavItem[] = [
   { label: 'Settings', path: '/admin/settings', icon: Settings, roles: ['super_admin', 'admin'] },
 ];
 
-export default function AdminSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+export default function AdminSidebar({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const location = useLocation();
   const { user } = useAuth();
 
@@ -51,7 +55,7 @@ export default function AdminSidebar() {
 
   return (
     <aside className={cn(
-      "fixed left-0 top-0 h-screen bg-sidebar flex flex-col border-r border-sidebar-border z-30 transition-all duration-200",
+      "fixed left-0 top-0 h-screen bg-sidebar hidden md:flex flex-col border-r border-sidebar-border z-30 transition-all duration-200",
       collapsed ? "w-16" : "w-60"
     )}>
       {/* Logo */}
@@ -87,7 +91,7 @@ export default function AdminSidebar() {
 
       {/* Collapse */}
       <button
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={onToggle}
         className="flex items-center justify-center h-10 border-t border-sidebar-border text-sidebar-muted hover:text-sidebar-foreground transition-colors"
       >
         {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}

@@ -158,6 +158,7 @@ export interface Route {
   id: string;
   name: string;
   area: string;
+  zone?: string;
   assignedWorkers: string[];
   customerCount: number;
 }

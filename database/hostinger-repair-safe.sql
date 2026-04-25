@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS routes (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   name VARCHAR(64) NOT NULL,
   area VARCHAR(128) NOT NULL,
+  zone VARCHAR(64) NOT NULL DEFAULT '',
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -180,6 +181,9 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 -- ---------------------------------------------------------------------------
 -- Compatibility alters (safe for upgraded code)
 -- ---------------------------------------------------------------------------
+
+ALTER TABLE routes
+  ADD COLUMN IF NOT EXISTS zone VARCHAR(64) NOT NULL DEFAULT '' AFTER area;
 
 ALTER TABLE payments
   MODIFY method ENUM('cash', 'bank_transfer', 'online', 'card', 'other') NOT NULL;

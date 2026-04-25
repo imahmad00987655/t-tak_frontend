@@ -134,6 +134,17 @@ export async function createEmployee(body: {
   return json.data;
 }
 
+export async function updateEmployee(
+  id: string,
+  body: Partial<{ status: 'active' | 'inactive'; assignedArea: string; actor: string }>
+) {
+  const json = await apiFetch<{ data: EmployeeDto }>(`/api/employees/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  return json.data;
+}
+
 export async function fetchReportsOverview(filters?: { from?: string; to?: string }): Promise<ReportsOverviewDto> {
   const params = new URLSearchParams();
   if (filters?.from) params.set('from', filters.from);

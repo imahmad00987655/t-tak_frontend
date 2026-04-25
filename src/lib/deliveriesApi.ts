@@ -2,7 +2,7 @@ import type { Delivery } from '@/types';
 import { apiFetch } from './api';
 
 export interface DeliveryLookupData {
-  customers: Array<{ id: string; customerId: string; name: string; area: string; status: string }>;
+  customers: Array<{ id: string; customerId: string; name: string; area: string; status: string; walletBalance: number }>;
   workers: Array<{ id: string; name: string; assignedArea: string }>;
   products: Array<{ id: string; name: string; defaultPrice: number; status: string }>;
 }
@@ -39,6 +39,17 @@ export async function createDelivery(body: {
 }): Promise<Delivery> {
   const json = await apiFetch<{ data: Delivery }>('/api/deliveries', {
     method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return json.data;
+}
+
+export async function updateDelivery(
+  id: string,
+  body: Partial<{ status: string; notes: string; deliveryDate: string; workerId: string }>
+): Promise<Delivery> {
+  const json = await apiFetch<{ data: Delivery }>(`/api/deliveries/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
     body: JSON.stringify(body),
   });
   return json.data;

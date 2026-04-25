@@ -10,10 +10,7 @@ import { Save, Building2, CreditCard, Shield, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  fetchManagedUsers,
   fetchSettings,
-  updateManagedUserPassword,
-  updateManagedUserStatus,
   updateBillingSettings,
   updateBusinessSettings,
   updateNotificationSettings,
@@ -93,10 +90,6 @@ export default function SettingsPage() {
     queryKey: ['settings'],
     queryFn: fetchSettings,
   });
-  const { data: managedUsers = [] } = useQuery({
-    queryKey: ['settings-users'],
-    queryFn: fetchManagedUsers,
-  });
 
   const [local, setLocal] = useState<SettingsPayload>(defaultState);
 
@@ -119,20 +112,6 @@ export default function SettingsPage() {
   const savePromotions = useMutation({
     mutationFn: updatePromotionSettings,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
-  });
-  const setUserStatus = useMutation({
-    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'inactive' }) =>
-      updateManagedUserStatus(userId, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings-users'] });
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-    },
-  });
-  const setUserPassword = useMutation({
-    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
-      updateManagedUserPassword(userId, password),
-    onSuccess: () => toast.success('Password updated'),
-    onError: (e: Error) => toast.error(e.message || 'Could not update password'),
   });
 
   const saving = saveBusiness.isPending || saveBilling.isPending || saveNotifications.isPending || savePromotions.isPending;
@@ -241,6 +220,7 @@ export default function SettingsPage() {
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                   <SelectItem value="online">Online</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
@@ -351,44 +331,10 @@ export default function SettingsPage() {
                 </div>
               ))}
             </div>
-            <div className="pt-3 border-t border-border space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">User Access Control</p>
-              {managedUsers.map((u) => (
-                <div key={u.id} className="flex items-center justify-between p-3 rounded-md border border-border">
-                  <div>
-                    <p className="text-sm font-medium">{u.name}</p>
-                    <p className="text-xs text-muted-foreground">{u.phone} · {roleLabelMap[u.role] || u.role}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="password"
-                      placeholder="New password"
-                      className="h-8 w-[150px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const value = (e.target as HTMLInputElement).value.trim();
-                          if (!value) return;
-                          setUserPassword.mutate({ userId: u.id, password: value });
-                          (e.target as HTMLInputElement).value = '';
-                        }
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant={u.status === 'active' ? 'outline' : 'default'}
-                      size="sm"
-                      onClick={() =>
-                        setUserStatus.mutate({
-                          userId: u.id,
-                          status: u.status === 'active' ? 'inactive' : 'active',
-                        })
-                      }
-                    >
-                      {u.status === 'active' ? 'Deactivate' : 'Activate'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+            <div className="pt-3 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                User access controls have been moved to the Employees module.
+              </p>
             </div>
           </SettingCard>
         </TabsContent>

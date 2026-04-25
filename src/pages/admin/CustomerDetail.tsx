@@ -17,6 +17,7 @@ import { fetchCustomer, fetchWalletTransactions, updateCustomer, type CustomerDt
 import { fetchDeliveries } from '@/lib/deliveriesApi';
 import { toast } from 'sonner';
 import CustomerQrCardDialog from '@/components/customers/CustomerQrCardDialog';
+import { fetchCustomerFormLookups } from '@/lib/routesApi';
 
 const editSchema = z.object({
   name: z.string().min(1),
@@ -33,15 +34,6 @@ const editSchema = z.object({
 });
 
 type EditValues = z.infer<typeof editSchema>;
-
-const AREAS = ['Gulberg', 'DHA', 'Johar Town', 'Model Town', 'Wapda Town', 'Kot Lakhpat', 'Old City'] as const;
-const ZONES = ['Central', 'North', 'South', 'East', 'West'] as const;
-const ROUTES = ['Route A1', 'Route A2', 'Route B1', 'Route B2', 'Route C1', 'Route D1', 'Route E1'] as const;
-const WORKERS = [
-  { id: '1', name: 'Imran Khan' },
-  { id: '2', name: 'Tariq Mehmood' },
-  { id: '3', name: 'Naveed Akhtar' },
-] as const;
 
 export default function CustomerDetail() {
   const { id } = useParams();
@@ -64,6 +56,10 @@ export default function CustomerDetail() {
   const { data: deliveryRows = [] } = useQuery({
     queryKey: ['deliveries'],
     queryFn: fetchDeliveries,
+  });
+  const { data: customerLookups } = useQuery({
+    queryKey: ['customer-form-lookups'],
+    queryFn: fetchCustomerFormLookups,
   });
 
   const updateMut = useMutation({
@@ -226,7 +222,7 @@ export default function CustomerDetail() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {AREAS.map((a) => (
+                        {(customerLookups?.areas ?? []).map((a) => (
                           <SelectItem key={a} value={a}>
                             {a}
                           </SelectItem>
@@ -247,7 +243,7 @@ export default function CustomerDetail() {
                         <SelectValue placeholder="Zone" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ZONES.map((z) => (
+                        {(customerLookups?.zones ?? []).map((z) => (
                           <SelectItem key={z} value={z}>
                             {z}
                           </SelectItem>
@@ -269,7 +265,7 @@ export default function CustomerDetail() {
                       <SelectValue placeholder="Route" />
                     </SelectTrigger>
                     <SelectContent>
-                      {ROUTES.map((r) => (
+                      {(customerLookups?.routes ?? []).map((r) => (
                         <SelectItem key={r} value={r}>
                           {r}
                         </SelectItem>
@@ -329,7 +325,7 @@ export default function CustomerDetail() {
                       <SelectValue placeholder="Worker" />
                     </SelectTrigger>
                     <SelectContent>
-                      {WORKERS.map((w) => (
+                      {(customerLookups?.workers ?? []).map((w) => (
                         <SelectItem key={w.id} value={w.id}>
                           {w.name}
                         </SelectItem>

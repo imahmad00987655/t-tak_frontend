@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 
 const schema = z.object({
   entryType: z.enum(['return', 'damage']),
+  scenario: z.enum(['delivery', 'inventory', 'in_house', 'customer_side']),
   customerId: z.string().min(1),
   walkInName: z.string().optional(),
   productId: z.string().min(1),
@@ -47,6 +48,7 @@ export default function ReturnsDamagesPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       entryType: 'return',
+      scenario: 'delivery',
       customerId: 'walk-in',
       walkInName: '',
       productId: '',
@@ -85,12 +87,13 @@ export default function ReturnsDamagesPage() {
   const onSubmit = (values: FormValues) => {
     mutation.mutate({
       entryType: values.entryType,
+      scenario: values.scenario,
       customerId: values.customerId,
       walkInName: values.customerId === 'walk-in' ? values.walkInName : undefined,
       productId: values.productId,
       quantity: values.quantity,
       unitPrice: values.unitPrice,
-      reason: values.reason || undefined,
+      reason: `${values.scenario.replace('_', ' ')}${values.reason ? ` - ${values.reason}` : ''}`,
       notes: values.notes || undefined,
     });
   };
@@ -115,28 +118,48 @@ export default function ReturnsDamagesPage() {
       <DataTable data={rows} columns={columns} searchKeys={['customerName', 'productName', 'reason']} />
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Return / Damage</DialogTitle>
             <DialogDescription>Works for registered and walk-in customers.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-            <Controller
-              control={control}
-              name="entryType"
-              render={({ field }) => (
-                <div className="space-y-1.5">
-                  <Label>Entry Type</Label>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="return">Return</SelectItem>
-                      <SelectItem value="damage">Damage</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Controller
+                control={control}
+                name="entryType"
+                render={({ field }) => (
+                  <div className="space-y-1.5">
+                    <Label>Entry Type</Label>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="return">Return</SelectItem>
+                        <SelectItem value="damage">Damage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+              <Controller
+                control={control}
+                name="scenario"
+                render={({ field }) => (
+                  <div className="space-y-1.5">
+                    <Label>Scenario</Label>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="delivery">During Delivery</SelectItem>
+                        <SelectItem value="inventory">Inventory Handling</SelectItem>
+                        <SelectItem value="in_house">In-house Damage</SelectItem>
+                        <SelectItem value="customer_side">Customer-side Damage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+            </div>
             <Controller
               control={control}
               name="customerId"

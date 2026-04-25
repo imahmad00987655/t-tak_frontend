@@ -14,8 +14,10 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createEmployee, fetchEmployees, type EmployeeDto } from '@/lib/operationsApi';
+import { updateEmployee } from '@/lib/operationsApi';
 import { fetchEmployeeLookups } from '@/lib/routesApi';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchManagedUsers, updateManagedUserPassword, updateManagedUserStatus } from '@/lib/settingsApi';
 
 const roleMap: Record<string, string> = { field_worker: 'Field Worker', staff: 'Plant Staff', admin: 'Admin' };
 
@@ -37,6 +39,7 @@ export default function EmployeesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewEmployee, setViewEmployee] = useState<EmployeeDto | null>(null);
   const { data: employees = [], isLoading, isError, error } = useQuery({
     queryKey: ['employees'],
     queryFn: fetchEmployees,
@@ -44,6 +47,10 @@ export default function EmployeesPage() {
   const { data: lookups } = useQuery({
     queryKey: ['employee-lookups'],
     queryFn: fetchEmployeeLookups,
+  });
+  const { data: managedUsers = [] } = useQuery({
+    queryKey: ['settings-users'],
+    queryFn: fetchManagedUsers,
   });
 
   const { register, control, handleSubmit, reset, formState: { errors } } = useForm<EmployeeFormValues>({
@@ -72,6 +79,26 @@ export default function EmployeesPage() {
       reset();
     },
     onError: (e: Error) => toast.error(e.message || 'Could not add employee'),
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'inactive' }) =>
+      updateEmployee(id, { status, actor: user?.name || 'Admin' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Employee updated');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not update employee'),
+  });
+  const setUserStatus = useMutation({
+    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'inactive' }) =>
+      updateManagedUserStatus(userId, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings-users'] }),
+  });
+  const setUserPassword = useMutation({
+    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
+      updateManagedUserPassword(userId, password),
+    onSuccess: () => toast.success('Password updated'),
+    onError: (e: Error) => toast.error(e.message || 'Could not update password'),
   });
 
   const columns = [
@@ -115,8 +142,64 @@ export default function EmployeesPage() {
       {isLoading ? (
         <div className="rounded-md border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading employees...</div>
       ) : (
-        <DataTable data={employees} columns={columns} searchKeys={['name', 'phone', 'assignedArea']} />
+        <DataTable
+          data={employees}
+          columns={columns}
+          searchKeys={['name', 'phone', 'assignedArea']}
+          actions={(e: EmployeeDto) => (
+            <div className="flex items-center gap-1">
+              <Button type="button" size="sm" variant="outline" onClick={() => setViewEmployee(e)}>View</Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={e.status === 'active' ? 'outline' : 'default'}
+                onClick={() => updateMutation.mutate({ id: e.id, status: e.status === 'active' ? 'inactive' : 'active' })}
+              >
+                {e.status === 'active' ? 'Deactivate' : 'Activate'}
+              </Button>
+            </div>
+          )}
+        />
       )}
+      <div className="mt-6 bg-card border border-border rounded-md p-4 space-y-3">
+        <h3 className="text-sm font-semibold">User Access (moved from Settings)</h3>
+        {managedUsers.map((u) => (
+          <div key={u.id} className="flex items-center justify-between p-3 rounded border border-border">
+            <div>
+              <p className="text-sm font-medium">{u.name}</p>
+              <p className="text-xs text-muted-foreground">{u.phone} · {roleMap[u.role] || u.role}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="password"
+                placeholder="New password"
+                className="h-8 w-[150px]"
+                onKeyDown={(evt) => {
+                  if (evt.key === 'Enter') {
+                    const value = (evt.target as HTMLInputElement).value.trim();
+                    if (!value) return;
+                    setUserPassword.mutate({ userId: u.id, password: value });
+                    (evt.target as HTMLInputElement).value = '';
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant={u.status === 'active' ? 'outline' : 'default'}
+                size="sm"
+                onClick={() =>
+                  setUserStatus.mutate({
+                    userId: u.id,
+                    status: u.status === 'active' ? 'inactive' : 'active',
+                  })
+                }
+              >
+                {u.status === 'active' ? 'Deactivate' : 'Activate'}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -220,6 +303,23 @@ export default function EmployeesPage() {
               <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving...' : 'Add Employee'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!viewEmployee} onOpenChange={() => setViewEmployee(null)}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Employee Details</DialogTitle>
+            <DialogDescription>{viewEmployee?.name}</DialogDescription>
+          </DialogHeader>
+          {viewEmployee && (
+            <div className="space-y-2 text-sm">
+              <div><span className="text-muted-foreground">Phone:</span> {viewEmployee.phone}</div>
+              <div><span className="text-muted-foreground">Role:</span> {roleMap[viewEmployee.role] || viewEmployee.role}</div>
+              <div><span className="text-muted-foreground">Area:</span> {viewEmployee.assignedArea || '—'}</div>
+              <div><span className="text-muted-foreground">Route:</span> {viewEmployee.assignedRoute || '—'}</div>
+              <div><span className="text-muted-foreground">Status:</span> {viewEmployee.status}</div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -8,18 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2 } from 'lucide-react';
+import { Eye, Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createDelivery, fetchDeliveries, fetchDeliveryLookups } from '@/lib/deliveriesApi';
+import { createDelivery, fetchDeliveries, fetchDeliveryLookups, updateDelivery } from '@/lib/deliveriesApi';
 import type { Delivery } from '@/types';
 
 export default function DeliveriesPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
 
   const { data: deliveries = [], isLoading: deliveriesLoading, isError, error } = useQuery({
     queryKey: ['deliveries'],
@@ -83,6 +86,8 @@ export default function DeliveriesPage() {
   });
 
   const watchedItems = useWatch({ control, name: 'items' });
+  const watchedCustomerId = useWatch({ control, name: 'customerId' });
+  const watchedAdvanceAmount = useWatch({ control, name: 'advanceAmount' });
 
   const productMap = useMemo(() => {
     return new Map((lookups?.products ?? []).map((p) => [p.id, p]));
@@ -97,6 +102,15 @@ export default function DeliveriesPage() {
       return sum + unitPrice * quantity;
     }, 0);
   }, [watchedItems, productMap]);
+  const selectedCustomer = useMemo(
+    () => (lookups?.customers ?? []).find((c) => c.id === watchedCustomerId),
+    [lookups, watchedCustomerId]
+  );
+  const selectedCustomerWallet = Number((selectedCustomer as any)?.walletBalance || 0);
+  const advanceUsed = Math.min(computedTotal, Number(watchedAdvanceAmount || 0));
+  const payableAfterAdvance = Math.max(0, computedTotal - advanceUsed);
+  const computedWalletDeduction = Math.min(payableAfterAdvance, selectedCustomerWallet);
+  const computedAmountDue = Math.max(0, payableAfterAdvance - computedWalletDeduction);
 
   const createMutation = useMutation({
     mutationFn: createDelivery,
@@ -120,6 +134,16 @@ export default function DeliveriesPage() {
       });
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to create delivery'),
+  });
+  const editMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { status: string; notes?: string; deliveryDate?: string; workerId?: string } }) =>
+      updateDelivery(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+      toast.success('Delivery updated');
+      setEditOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not update delivery'),
   });
 
   const columns = [
@@ -145,14 +169,14 @@ export default function DeliveriesPage() {
     createMutation.mutate({
       customerId: values.customerId,
       workerId: values.workerId,
-      status: values.status,
-      paymentStatus: values.paymentStatus,
-      walletDeduction: values.walletDeduction ?? 0,
+      status: 'pending',
+      paymentStatus: computedAmountDue <= 0 ? 'paid' : computedWalletDeduction > 0 ? 'partial' : 'unpaid',
+      walletDeduction: computedWalletDeduction,
       deliveryDate: values.deliveryDate,
       deliveryTime: values.deliveryTime || undefined,
       periodStartDate: values.periodStartDate || undefined,
       periodEndDate: values.periodEndDate || undefined,
-      advanceAmount: values.advanceAmount ?? 0,
+      advanceAmount: Number(values.advanceAmount || 0),
       notes: values.notes || undefined,
       items: values.items.map((item) => ({
         productId: item.productId,
@@ -180,7 +204,47 @@ export default function DeliveriesPage() {
           Loading deliveries...
         </div>
       ) : (
-        <DataTable data={deliveries} columns={columns} searchKeys={['customerName', 'id', 'area', 'workerName']} />
+        <DataTable
+          data={deliveries}
+          columns={columns}
+          searchKeys={['customerName', 'id', 'area', 'workerName']}
+          actions={(d: Delivery) => (
+            <div className="flex items-center gap-1">
+              <button
+                className="p-1.5 rounded hover:bg-muted"
+                title="View"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDelivery(d);
+                  setViewOpen(true);
+                }}
+              >
+                <Eye className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button
+                className="p-1.5 rounded hover:bg-muted"
+                title="Edit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDelivery(d);
+                  setEditOpen(true);
+                }}
+              >
+                <Edit className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+          )}
+        />
+      )}
+      {!deliveriesLoading && (
+        <div className="mt-3 text-xs text-muted-foreground">
+          Tip: New deliveries are created as <b>Pending</b>. Field worker completion marks them delivered.
+        </div>
+      )}
+      {!deliveriesLoading && (
+        <div className="hidden">
+          {/* preserves type usage for actions callback */}
+        </div>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -207,6 +271,11 @@ export default function DeliveriesPage() {
                 )}
               />
               {errors.customerId && <p className="text-xs text-destructive">{errors.customerId.message}</p>}
+              {!!selectedCustomer && (
+                <p className="text-xs text-muted-foreground">
+                  Wallet balance: Rs {selectedCustomerWallet.toLocaleString()}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Assign Worker *</Label>
@@ -246,7 +315,7 @@ export default function DeliveriesPage() {
                         >
                           <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>
-                            {(lookups?.products ?? []).map(p => (
+                            {(lookups?.products ?? []).filter((p) => p.status === 'active').map(p => (
                               <SelectItem key={p.id} value={p.id}>{p.name} — Rs {p.defaultPrice}</SelectItem>
                             ))}
                           </SelectContent>
@@ -295,24 +364,7 @@ export default function DeliveriesPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Controller
-                  control={control}
-                  name="status"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="assigned">Assigned</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="delivered">Delivered</SelectItem>
-                        <SelectItem value="partially_delivered">Partially Delivered</SelectItem>
-                        <SelectItem value="failed">Failed</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
+                <Input value="Pending (auto)" disabled />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
@@ -332,25 +384,21 @@ export default function DeliveriesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Payment Status</Label>
-                <Controller
-                  control={control}
-                  name="paymentStatus"
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unpaid">Unpaid</SelectItem>
-                        <SelectItem value="partial">Partial</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
+                <Input
+                  value={computedAmountDue <= 0 ? 'Paid (auto)' : computedWalletDeduction > 0 ? 'Partial (auto)' : 'Unpaid (auto)'}
+                  disabled
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>Wallet Deduction</Label>
-                <Input type="number" min="0" step="0.01" placeholder="0" {...register('walletDeduction', { valueAsNumber: true })} />
+                <Input value={`Rs ${computedWalletDeduction.toLocaleString()}`} disabled />
               </div>
+            </div>
+            <div className="rounded-md border border-border p-3 text-sm space-y-1">
+              <div className="flex justify-between"><span className="text-muted-foreground">Items Total</span><span>Rs {computedTotal.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Advance Used</span><span>- Rs {advanceUsed.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Payable After Advance</span><span>Rs {payableAfterAdvance.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Amount Due</span><span className={computedAmountDue > 0 ? 'text-destructive' : 'text-accent'}>Rs {computedAmountDue.toLocaleString()}</span></div>
             </div>
             <div className="space-y-1.5">
               <Label>Delivery Time</Label>
@@ -367,6 +415,90 @@ export default function DeliveriesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Delivery Details</DialogTitle>
+            <DialogDescription>{selectedDelivery?.id}</DialogDescription>
+          </DialogHeader>
+          {selectedDelivery && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div><span className="text-muted-foreground">Customer:</span> {selectedDelivery.customerName}</div>
+                <div><span className="text-muted-foreground">Worker:</span> {selectedDelivery.workerName}</div>
+                <div><span className="text-muted-foreground">Date:</span> {selectedDelivery.deliveryDate}</div>
+                <div><span className="text-muted-foreground">Status:</span> {selectedDelivery.status}</div>
+              </div>
+              <div className="rounded-md border border-border p-2">
+                {selectedDelivery.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between py-1">
+                    <span>{item.quantity}x {item.productName}</span>
+                    <span>Rs {item.total}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Edit Delivery</DialogTitle>
+            <DialogDescription>Update status/assignment/date.</DialogDescription>
+          </DialogHeader>
+          {selectedDelivery && (
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                editMutation.mutate({
+                  id: (selectedDelivery as any).dbId || selectedDelivery.id,
+                  payload: {
+                    status: String(formData.get('status') || selectedDelivery.status),
+                    deliveryDate: String(formData.get('deliveryDate') || selectedDelivery.deliveryDate),
+                    workerId: String(formData.get('workerId') || selectedDelivery.workerId),
+                    notes: String(formData.get('notes') || selectedDelivery.notes || ''),
+                  },
+                });
+              }}
+            >
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <select name="status" defaultValue={selectedDelivery.status} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="pending">Pending</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="failed">Failed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Delivery Date</Label>
+                <Input name="deliveryDate" type="date" defaultValue={selectedDelivery.deliveryDate} />
+              </div>
+              <div className="space-y-1">
+                <Label>Worker</Label>
+                <select name="workerId" defaultValue={selectedDelivery.workerId} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  {(lookups?.workers ?? []).map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Notes</Label>
+                <Textarea name="notes" defaultValue={selectedDelivery.notes || ''} rows={2} className="resize-none" />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={editMutation.isPending}>{editMutation.isPending ? 'Saving...' : 'Save'}</Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

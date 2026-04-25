@@ -19,6 +19,7 @@ import type { InventoryItem } from '@/types';
 export default function InventoryPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const { data: items = [], isLoading, isError, error } = useQuery({
     queryKey: ['inventory-items'],
     queryFn: fetchInventoryItems,
@@ -98,7 +99,21 @@ export default function InventoryPage() {
       {isLoading ? (
         <div className="rounded-md border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading inventory...</div>
       ) : (
-        <DataTable data={items} columns={columns} searchKeys={['name', 'category']} />
+        <DataTable
+          data={items}
+          columns={columns}
+          searchKeys={['name', 'category']}
+          actions={(i: InventoryItem) => (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedItem(i)}
+            >
+              View
+            </Button>
+          )}
+        />
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -159,6 +174,23 @@ export default function InventoryPage() {
               <Button type="submit" disabled={txMutation.isPending}>{txMutation.isPending ? 'Saving...' : 'Record Entry'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Inventory Item</DialogTitle>
+            <DialogDescription>{selectedItem?.name}</DialogDescription>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="space-y-2 text-sm">
+              <div><span className="text-muted-foreground">Category:</span> {selectedItem.category}</div>
+              <div><span className="text-muted-foreground">Unit:</span> {selectedItem.unit}</div>
+              <div><span className="text-muted-foreground">Current Stock:</span> {selectedItem.currentStock}</div>
+              <div><span className="text-muted-foreground">Min Level:</span> {selectedItem.minStockLevel}</div>
+              <div><span className="text-muted-foreground">Unit Cost:</span> Rs {selectedItem.unitCost}</div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

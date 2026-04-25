@@ -138,6 +138,7 @@ export async function fetchReturnsDamages(filters?: { from?: string; to?: string
 
 export async function createReturnDamage(body: {
   entryType: 'return' | 'damage';
+  scenario?: 'delivery' | 'inventory' | 'in_house' | 'customer_side';
   customerId: string;
   walkInName?: string;
   productId: string;

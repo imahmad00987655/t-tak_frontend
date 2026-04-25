@@ -297,6 +297,7 @@ CREATE TABLE routes (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   name VARCHAR(64) NOT NULL,
   area VARCHAR(128) NOT NULL,
+  zone VARCHAR(64) NOT NULL DEFAULT '',
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -446,12 +447,12 @@ INSERT INTO delivery_items (delivery_id, product_id, quantity, unit_price, total
   (2, 1, 5, 80.00, 400.00),
   (2, 2, 7, 50.00, 350.00);
 
-INSERT INTO routes (id, name, area, status) VALUES
-  (1, 'Route A1', 'Gulberg', 'active'),
-  (2, 'Route A2', 'Model Town', 'active'),
-  (3, 'Route B1', 'Wapda Town', 'active'),
-  (4, 'Route B2', 'DHA', 'active'),
-  (5, 'Route C1', 'Johar Town', 'active');
+INSERT INTO routes (id, name, area, zone, status) VALUES
+  (1, 'Route A1', 'Gulberg', 'Central', 'active'),
+  (2, 'Route A2', 'Model Town', 'Central', 'active'),
+  (3, 'Route B1', 'Wapda Town', 'West', 'active'),
+  (4, 'Route B2', 'DHA', 'South', 'active'),
+  (5, 'Route C1', 'Johar Town', 'East', 'active');
 
 INSERT INTO route_workers (route_id, worker_id) VALUES
   (1, 1),

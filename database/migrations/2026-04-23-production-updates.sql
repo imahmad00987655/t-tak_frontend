@@ -162,3 +162,18 @@ CREATE TABLE IF NOT EXISTS returns_damages (
   CONSTRAINT fk_returns_damages_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL,
   CONSTRAINT fk_returns_damages_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- routes zones support
+SET @has_routes_zone := (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'routes'
+    AND COLUMN_NAME = 'zone'
+);
+SET @sql := IF(
+  @has_routes_zone = 0,
+  'ALTER TABLE routes ADD COLUMN zone VARCHAR(64) NOT NULL DEFAULT "" AFTER area',
+  'SELECT "routes.zone already exists"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

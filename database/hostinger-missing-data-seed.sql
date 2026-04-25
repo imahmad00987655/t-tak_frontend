@@ -114,14 +114,14 @@ SELECT
 WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = '1.5L Mineral Water');
 
 -- Routes and assignments
-INSERT INTO routes (name, area, status)
-SELECT * FROM (SELECT 'Route A1', 'Gulberg', 'active') AS tmp
+INSERT INTO routes (name, area, zone, status)
+SELECT * FROM (SELECT 'Route A1', 'Gulberg', 'Central', 'active') AS tmp
 WHERE NOT EXISTS (SELECT 1 FROM routes WHERE name = 'Route A1');
-INSERT INTO routes (name, area, status)
-SELECT * FROM (SELECT 'Route B2', 'DHA', 'active') AS tmp
+INSERT INTO routes (name, area, zone, status)
+SELECT * FROM (SELECT 'Route B2', 'DHA', 'South', 'active') AS tmp
 WHERE NOT EXISTS (SELECT 1 FROM routes WHERE name = 'Route B2');
-INSERT INTO routes (name, area, status)
-SELECT * FROM (SELECT 'Route C1', 'Johar Town', 'active') AS tmp
+INSERT INTO routes (name, area, zone, status)
+SELECT * FROM (SELECT 'Route C1', 'Johar Town', 'East', 'active') AS tmp
 WHERE NOT EXISTS (SELECT 1 FROM routes WHERE name = 'Route C1');
 
 INSERT INTO route_workers (route_id, worker_id)

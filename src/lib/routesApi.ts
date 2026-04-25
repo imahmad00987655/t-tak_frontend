@@ -11,7 +11,15 @@ export interface RouteLookups {
 
 export interface EmployeeLookups {
   areas: string[];
-  routes: Array<{ id: string; name: string; area: string }>;
+  zones: string[];
+  routes: Array<{ id: string; name: string; area: string; zone?: string }>;
+}
+
+export interface CustomerFormLookups {
+  areas: string[];
+  zones: string[];
+  routes: string[];
+  workers: Array<{ id: string; name: string }>;
 }
 
 export async function fetchRoutes(): Promise<RouteDto[]> {
@@ -27,6 +35,7 @@ export async function fetchRouteLookups(): Promise<RouteLookups> {
 export async function createRoute(body: {
   name: string;
   area: string;
+  zone?: string;
   workerIds: string[];
 }): Promise<RouteDto | null> {
   const json = await apiFetch<{ data: RouteDto | null }>('/api/routes', {
@@ -38,5 +47,10 @@ export async function createRoute(body: {
 
 export async function fetchEmployeeLookups(): Promise<EmployeeLookups> {
   const json = await apiFetch<{ data: EmployeeLookups }>('/api/lookups/employee-form');
+  return json.data;
+}
+
+export async function fetchCustomerFormLookups(): Promise<CustomerFormLookups> {
+  const json = await apiFetch<{ data: CustomerFormLookups }>('/api/lookups/customer-form');
   return json.data;
 }

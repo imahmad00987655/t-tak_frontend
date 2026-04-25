@@ -13,7 +13,7 @@ export interface SettingsPayload {
     allowCredit: boolean;
     autoInvoice: boolean;
     clientReportMode: 'daily' | 'weekly' | 'monthly';
-    defaultPaymentMethod: 'cash' | 'bank_transfer' | 'online' | 'other';
+    defaultPaymentMethod: 'cash' | 'bank_transfer' | 'online' | 'card' | 'other';
   };
   promotions: {
     buyXGetYEnabled: boolean;

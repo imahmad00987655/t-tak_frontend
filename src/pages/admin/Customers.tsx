@@ -17,6 +17,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createCustomer, fetchCustomers, type CustomerDto } from '@/lib/customersApi';
 import CustomerQrCardDialog from '@/components/customers/CustomerQrCardDialog';
+import { fetchCustomerFormLookups } from '@/lib/routesApi';
 
 const addCustomerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -37,15 +38,6 @@ const addCustomerSchema = z.object({
 
 type AddCustomerValues = z.infer<typeof addCustomerSchema>;
 
-const AREAS = ['Gulberg', 'DHA', 'Johar Town', 'Model Town', 'Wapda Town', 'Kot Lakhpat', 'Old City'] as const;
-const ZONES = ['Central', 'North', 'South', 'East', 'West'] as const;
-const ROUTES = ['Route A1', 'Route A2', 'Route B1', 'Route B2', 'Route C1', 'Route D1', 'Route E1'] as const;
-const WORKERS = [
-  { id: '1', name: 'Imran Khan' },
-  { id: '2', name: 'Tariq Mehmood' },
-  { id: '3', name: 'Naveed Akhtar' },
-] as const;
-
 export default function CustomersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -56,6 +48,10 @@ export default function CustomersPage() {
   const { data: customers = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['customers'],
     queryFn: fetchCustomers,
+  });
+  const { data: customerLookups } = useQuery({
+    queryKey: ['customer-form-lookups'],
+    queryFn: fetchCustomerFormLookups,
   });
 
   const createMutation = useMutation({
@@ -290,7 +286,7 @@ export default function CustomersPage() {
                         <SelectValue placeholder="Select area" />
                       </SelectTrigger>
                       <SelectContent>
-                        {AREAS.map((a) => (
+                        {(customerLookups?.areas ?? []).map((a) => (
                           <SelectItem key={a} value={a}>
                             {a}
                           </SelectItem>
@@ -312,7 +308,7 @@ export default function CustomersPage() {
                         <SelectValue placeholder="Select zone" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ZONES.map((z) => (
+                        {(customerLookups?.zones ?? []).map((z) => (
                           <SelectItem key={z} value={z}>
                             {z}
                           </SelectItem>
@@ -333,7 +329,7 @@ export default function CustomersPage() {
                         <SelectValue placeholder="Select route" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ROUTES.map((r) => (
+                        {(customerLookups?.routes ?? []).map((r) => (
                           <SelectItem key={r} value={r}>
                             {r}
                           </SelectItem>
@@ -360,7 +356,7 @@ export default function CustomersPage() {
                         <SelectValue placeholder="Select worker" />
                       </SelectTrigger>
                       <SelectContent>
-                        {WORKERS.map((w) => (
+                        {(customerLookups?.workers ?? []).map((w) => (
                           <SelectItem key={w.id} value={w.id}>
                             {w.name}
                           </SelectItem>
