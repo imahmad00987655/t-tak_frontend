@@ -8,18 +8,20 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Plus } from 'lucide-react';
+import { Edit, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createProduct, fetchProducts } from '@/lib/productsApi';
+import { createProduct, fetchProducts, updateProduct } from '@/lib/productsApi';
 import type { Product } from '@/types';
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const { data: products = [], isLoading, isError, error } = useQuery({
     queryKey: ['products'],
@@ -59,6 +61,16 @@ export default function ProductsPage() {
       reset();
     },
     onError: (e: Error) => toast.error(e.message || 'Failed to add product'),
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof updateProduct>[1] }) =>
+      updateProduct(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Product updated');
+      setEditOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update product'),
   });
 
   const columns = [
@@ -106,7 +118,39 @@ export default function ProductsPage() {
             <Button type="button" variant={statusFilter === 'active' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('active')}>Active</Button>
             <Button type="button" variant={statusFilter === 'inactive' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('inactive')}>Inactive</Button>
           </div>
-          <DataTable data={filteredProducts} columns={columns} searchKeys={['name', 'category']} />
+          <DataTable
+            data={filteredProducts}
+            columns={columns}
+            searchKeys={['name', 'category']}
+            actions={(p: Product) => (
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedProduct(p);
+                    setEditOpen(true);
+                  }}
+                >
+                  <Edit className="w-3.5 h-3.5 mr-1" /> Edit
+                </Button>
+                <Button
+                  type="button"
+                  variant={p.status === 'active' ? 'outline' : 'default'}
+                  size="sm"
+                  onClick={() =>
+                    updateMutation.mutate({
+                      id: p.id,
+                      body: { status: p.status === 'active' ? 'inactive' : 'active' },
+                    })
+                  }
+                >
+                  {p.status === 'active' ? 'Set Inactive' : 'Set Active'}
+                </Button>
+              </div>
+            )}
+          />
         </>
       )}
 
@@ -186,6 +230,79 @@ export default function ProductsPage() {
               <Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? 'Saving...' : 'Add Product'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+            <DialogDescription>Update product details and status.</DialogDescription>
+          </DialogHeader>
+          {selectedProduct && (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                updateMutation.mutate({
+                  id: selectedProduct.id,
+                  body: {
+                    name: String(fd.get('name') || ''),
+                    description: String(fd.get('description') || ''),
+                    category: String(fd.get('category') || ''),
+                    unit: String(fd.get('unit') || ''),
+                    defaultPrice: Number(fd.get('defaultPrice') || 0),
+                    stockQuantity: Number(fd.get('stockQuantity') || 0),
+                    status: String(fd.get('status') || 'active') as 'active' | 'inactive',
+                  },
+                });
+              }}
+            >
+              <div className="space-y-1.5">
+                <Label>Name</Label>
+                <Input name="name" defaultValue={selectedProduct.name} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description</Label>
+                <Textarea name="description" defaultValue={selectedProduct.description} rows={2} className="resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Category</Label>
+                  <Input name="category" defaultValue={selectedProduct.category} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Unit</Label>
+                  <Input name="unit" defaultValue={selectedProduct.unit} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Default Price</Label>
+                  <Input name="defaultPrice" type="number" min="0" step="0.01" defaultValue={selectedProduct.defaultPrice} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Stock Quantity</Label>
+                  <Input name="stockQuantity" type="number" min="0" defaultValue={selectedProduct.stockQuantity} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <select
+                  name="status"
+                  defaultValue={selectedProduct.status}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Saving...' : 'Save Changes'}</Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

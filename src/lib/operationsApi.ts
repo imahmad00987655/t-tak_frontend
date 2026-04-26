@@ -136,7 +136,19 @@ export async function createEmployee(body: {
 
 export async function updateEmployee(
   id: string,
-  body: Partial<{ status: 'active' | 'inactive'; assignedArea: string; actor: string }>
+  body: Partial<{
+    name: string;
+    phone: string;
+    email: string;
+    role: 'field_worker' | 'staff' | 'admin';
+    status: 'active' | 'inactive';
+    assignedArea: string;
+    assignedRoute: string;
+    loginPhone: string;
+    loginEmail: string;
+    loginPassword: string;
+    actor: string;
+  }>
 ) {
   const json = await apiFetch<{ data: EmployeeDto }>(`/api/employees/${encodeURIComponent(id)}`, {
     method: 'PATCH',

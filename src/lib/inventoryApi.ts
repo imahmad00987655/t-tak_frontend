@@ -27,3 +27,21 @@ export async function createInventoryTransaction(body: {
   });
   return json.data;
 }
+
+export async function updateInventoryItem(
+  id: string,
+  body: Partial<{
+    name: string;
+    category: string;
+    unit: string;
+    minStockLevel: number;
+    unitCost: number;
+    status: 'active' | 'inactive';
+  }>
+): Promise<InventoryItem> {
+  const json = await apiFetch<{ data: InventoryItem }>(`/api/inventory/items/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  return json.data;
+}

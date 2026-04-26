@@ -40,6 +40,7 @@ export default function EmployeesPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewEmployee, setViewEmployee] = useState<EmployeeDto | null>(null);
+  const [editEmployee, setEditEmployee] = useState<EmployeeDto | null>(null);
   const { data: employees = [], isLoading, isError, error } = useQuery({
     queryKey: ['employees'],
     queryFn: fetchEmployees,
@@ -81,11 +82,12 @@ export default function EmployeesPage() {
     onError: (e: Error) => toast.error(e.message || 'Could not add employee'),
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'active' | 'inactive' }) =>
-      updateEmployee(id, { status, actor: user?.name || 'Admin' }),
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof updateEmployee>[1] }) =>
+      updateEmployee(id, { ...body, actor: user?.name || 'Admin' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Employee updated');
+      setEditEmployee(null);
     },
     onError: (e: Error) => toast.error(e.message || 'Could not update employee'),
   });
@@ -152,10 +154,10 @@ export default function EmployeesPage() {
               <Button
                 type="button"
                 size="sm"
-                variant={e.status === 'active' ? 'outline' : 'default'}
-                onClick={() => updateMutation.mutate({ id: e.id, status: e.status === 'active' ? 'inactive' : 'active' })}
+                variant="outline"
+                onClick={() => setEditEmployee(e)}
               >
-                {e.status === 'active' ? 'Deactivate' : 'Activate'}
+                Edit
               </Button>
             </div>
           )}
@@ -319,6 +321,129 @@ export default function EmployeesPage() {
               <div><span className="text-muted-foreground">Route:</span> {viewEmployee.assignedRoute || '—'}</div>
               <div><span className="text-muted-foreground">Status:</span> {viewEmployee.status}</div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!editEmployee} onOpenChange={() => setEditEmployee(null)}>
+        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>Update all employee and login fields.</DialogDescription>
+          </DialogHeader>
+          {editEmployee && (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                updateMutation.mutate({
+                  id: editEmployee.id,
+                  body: {
+                    name: String(fd.get('name') || ''),
+                    phone: String(fd.get('phone') || ''),
+                    email: String(fd.get('email') || ''),
+                    role: String(fd.get('role') || 'field_worker') as 'field_worker' | 'staff' | 'admin',
+                    status: String(fd.get('status') || 'active') as 'active' | 'inactive',
+                    assignedArea: String(fd.get('assignedArea') || ''),
+                    assignedRoute: String(fd.get('assignedRoute') || ''),
+                    loginPhone: String(fd.get('loginPhone') || ''),
+                    loginEmail: String(fd.get('loginEmail') || ''),
+                    loginPassword: String(fd.get('loginPassword') || ''),
+                  },
+                });
+              }}
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Name</Label>
+                  <Input name="name" defaultValue={editEmployee.name} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Phone</Label>
+                  <Input name="phone" defaultValue={editEmployee.phone} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Email</Label>
+                  <Input name="email" type="email" defaultValue={editEmployee.email} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Role</Label>
+                  <select
+                    name="role"
+                    defaultValue={editEmployee.role}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="field_worker">Field Worker</option>
+                    <option value="staff">Plant Staff</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Assigned Area</Label>
+                  <select
+                    name="assignedArea"
+                    defaultValue={editEmployee.assignedArea || ''}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Select area</option>
+                    {(lookups?.areas ?? []).map((area) => (
+                      <option key={area} value={area}>{area}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Assigned Route</Label>
+                  <select
+                    name="assignedRoute"
+                    defaultValue={editEmployee.assignedRoute || ''}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Select route</option>
+                    {(lookups?.routes ?? []).map((route) => (
+                      <option key={route.id} value={route.name}>
+                        {route.name} ({route.area})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <select
+                  name="status"
+                  defaultValue={editEmployee.status}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="border border-border rounded-md p-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Login (optional)</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Login Phone</Label>
+                    <Input name="loginPhone" placeholder="03XX-XXXXXXX" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Login Email</Label>
+                    <Input name="loginEmail" type="email" placeholder="Optional" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>New Password</Label>
+                    <Input name="loginPassword" type="password" placeholder="Leave blank to keep" />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditEmployee(null)}>Cancel</Button>
+                <Button type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Saving...' : 'Save Changes'}</Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>

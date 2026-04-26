@@ -10,16 +10,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Plus, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createInventoryTransaction, fetchInventoryItems, fetchInventoryLookups } from '@/lib/inventoryApi';
+import { updateInventoryItem } from '@/lib/inventoryApi';
 import type { InventoryItem } from '@/types';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const { data: items = [], isLoading, isError, error } = useQuery({
     queryKey: ['inventory-items'],
     queryFn: fetchInventoryItems,
@@ -46,6 +48,8 @@ export default function InventoryPage() {
       notes: '',
     },
   });
+  const selectedItemId = useWatch({ control, name: 'itemId' });
+  const selectedItemMeta = (lookups?.items ?? []).find((item) => item.id === selectedItemId);
 
   const txMutation = useMutation({
     mutationFn: createInventoryTransaction,
@@ -57,6 +61,17 @@ export default function InventoryPage() {
       reset({ itemId: '', type: 'stock_in', quantity: 1, notes: '' });
     },
     onError: (e: Error) => toast.error(e.message || 'Could not record stock entry'),
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof updateInventoryItem>[1] }) =>
+      updateInventoryItem(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-lookups'] });
+      toast.success('Inventory item updated');
+      setEditOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not update inventory item'),
   });
 
   const columns = [
@@ -104,14 +119,27 @@ export default function InventoryPage() {
           columns={columns}
           searchKeys={['name', 'category']}
           actions={(i: InventoryItem) => (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setSelectedItem(i)}
-            >
-              View
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectedItem(i)}
+              >
+                View
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSelectedItem(i);
+                  setEditOpen(true);
+                }}
+              >
+                Edit
+              </Button>
+            </div>
           )}
         />
       )}
@@ -124,22 +152,29 @@ export default function InventoryPage() {
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Inventory Item *</Label>
+              <Label>Product Item *</Label>
               <Controller
                 control={control}
                 name="itemId"
                 render={({ field }) => (
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select product item" /></SelectTrigger>
                     <SelectContent>
                       {(lookups?.items ?? []).map(i => (
-                        <SelectItem key={i.id} value={i.id}>{i.name} (Stock: {i.currentStock})</SelectItem>
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.name} ({i.unit}) - Stock: {i.currentStock}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               />
               {errors.itemId && <p className="text-xs text-destructive">{errors.itemId.message}</p>}
+              {selectedItemMeta && (
+                <p className="text-xs text-muted-foreground">
+                  Category: {selectedItemMeta.category} • Unit: {selectedItemMeta.unit}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -161,7 +196,7 @@ export default function InventoryPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Quantity *</Label>
+                <Label>Quantity {selectedItemMeta ? `(${selectedItemMeta.unit})` : ''} *</Label>
                 <Input type="number" placeholder="0" min="1" {...register('quantity', { valueAsNumber: true })} />
               </div>
             </div>
@@ -190,6 +225,74 @@ export default function InventoryPage() {
               <div><span className="text-muted-foreground">Min Level:</span> {selectedItem.minStockLevel}</div>
               <div><span className="text-muted-foreground">Unit Cost:</span> Rs {selectedItem.unitCost}</div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Edit Inventory Item</DialogTitle>
+            <DialogDescription>{selectedItem?.name}</DialogDescription>
+          </DialogHeader>
+          {selectedItem && (
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                updateMutation.mutate({
+                  id: selectedItem.id,
+                  body: {
+                    name: String(fd.get('name') || ''),
+                    category: String(fd.get('category') || ''),
+                    unit: String(fd.get('unit') || ''),
+                    minStockLevel: Number(fd.get('minStockLevel') || 0),
+                    unitCost: Number(fd.get('unitCost') || 0),
+                    status: String(fd.get('status') || 'active') as 'active' | 'inactive',
+                  },
+                });
+              }}
+            >
+              <div className="space-y-1">
+                <Label>Name</Label>
+                <Input name="name" defaultValue={selectedItem.name} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Category</Label>
+                  <Input name="category" defaultValue={selectedItem.category} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Unit</Label>
+                  <Input name="unit" defaultValue={selectedItem.unit} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Min Stock Level</Label>
+                  <Input name="minStockLevel" type="number" min="0" defaultValue={selectedItem.minStockLevel} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Unit Cost</Label>
+                  <Input name="unitCost" type="number" min="0" step="0.01" defaultValue={selectedItem.unitCost} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <select
+                  name="status"
+                  defaultValue="active"
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Saving...' : 'Save Changes'}</Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>
