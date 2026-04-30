@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { fetchCustomers, fetchPublicCustomerByToken } from '@/lib/customersApi';
 import { useToast } from '@/hooks/use-toast';
 import { Html5Qrcode } from 'html5-qrcode';
+import { useAuth } from '@/contexts/AuthContext';
 
 function readTokenFromQrValue(value: string): string | null {
   const raw = value.trim();
@@ -26,6 +27,7 @@ export default function QRScanPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
   const [manualId, setManualId] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -161,11 +163,30 @@ export default function QRScanPage() {
   }, [handleResolvedValue]);
 
   useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'field_worker') {
+      return;
+    }
     startCamera();
     return () => {
       void stopCamera();
     };
-  }, [startCamera, stopCamera]);
+  }, [isAuthenticated, startCamera, stopCamera, user?.role]);
+
+  if (!isAuthenticated || user?.role !== 'field_worker') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="max-w-md w-full border border-border rounded-lg p-6 text-center bg-card">
+          <p className="text-base font-medium">Only field workers can access QR scan.</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Please login with a field worker account to scan customer QR codes.
+          </p>
+          <Button className="mt-4 w-full" onClick={() => navigate('/login')}>
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const handleManualSearch = async () => {
     const value = manualId.trim();

@@ -29,20 +29,6 @@ export default function LoginPage() {
     }
   };
 
-  const quickLogin = async (role: UserRole) => {
-    try {
-      setLoading(true);
-      await login('', '', role);
-      if (role === 'field_worker') navigate('/worker');
-      else if (role === 'client') navigate('/client');
-      else navigate('/admin');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Quick login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -79,26 +65,6 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
-
-        <div className="mt-6">
-          <p className="text-xs text-muted-foreground text-center mb-3">Quick Demo Access</p>
-          <div className="grid grid-cols-2 gap-2">
-            {([
-              ['admin', 'Admin'],
-              ['staff', 'Plant Staff'],
-              ['field_worker', 'Field Worker'],
-              ['client', 'Customer'],
-            ] as [UserRole, string][]).map(([role, label]) => (
-              <button
-                key={role}
-                onClick={() => quickLogin(role)}
-                className="h-9 px-3 rounded-md border border-input bg-card text-xs font-medium hover:bg-muted transition-colors"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

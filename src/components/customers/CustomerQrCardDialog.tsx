@@ -43,7 +43,7 @@ export default function CustomerQrCardDialog({ customer, open, onOpenChange }: P
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl print:border-0 print:shadow-none [&>button]:print:hidden">
         <DialogHeader>
           <DialogTitle>Customer QR card</DialogTitle>
           <DialogDescription>
@@ -57,7 +57,7 @@ export default function CustomerQrCardDialog({ customer, open, onOpenChange }: P
               {!error && dataUrl && <img src={dataUrl} alt="Customer QR" className="w-[280px] h-[280px]" />}
               {!error && !dataUrl && <p className="text-sm text-muted-foreground py-16">Generating...</p>}
             </div>
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 print:hidden">
               <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
                 Close
               </Button>
