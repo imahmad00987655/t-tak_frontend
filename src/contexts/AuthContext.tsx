@@ -32,10 +32,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string, role: UserRole = 'admin') => {
-    const hasCredentials = email.trim() && password.trim();
-    const authUser = hasCredentials
-      ? await loginWithCredentials(email, password)
-      : await quickLoginByRole(role);
+    const identifier = email.trim();
+    const secret = password.trim();
+    if (!identifier || !secret) {
+      throw new Error('Email/phone and password are required');
+    }
+    const authUser = await loginWithCredentials(identifier, secret);
     saveUser(authUser);
   }, [saveUser]);
 
