@@ -64,7 +64,7 @@ export default function WorkerDashboard() {
             {myDeliveries.map((d) => (
               <Link
                 to={`/worker/scan?customerId=${encodeURIComponent(d.customerId)}&returnTo=${encodeURIComponent(
-                  `/worker/quick-deliver/${d.customerId}`
+                  `/worker/quick-deliver/${d.customerId}?deliveryId=${encodeURIComponent(d.id)}`
                 )}`}
                 key={d.id}
                 className="block bg-card border border-border rounded-lg p-4 active:bg-muted"

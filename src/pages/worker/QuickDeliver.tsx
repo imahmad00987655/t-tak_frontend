@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchCustomer } from '@/lib/customersApi';
-import { createDelivery, fetchDeliveryLookups } from '@/lib/deliveriesApi';
+import { completeDeliveryRuntime, fetchDeliveryLookups, fetchWorkerAssignedDelivery } from '@/lib/deliveriesApi';
 
 function resolveWorkerId(userId?: string) {
   if (!userId) return '';
@@ -31,30 +31,43 @@ export default function QuickDeliverPage() {
     queryKey: ['delivery-lookups'],
     queryFn: fetchDeliveryLookups,
   });
+  const deliveryId = searchParams.get('deliveryId') || '';
+  const { data: assignedDelivery, isLoading: assignedLoading } = useQuery({
+    queryKey: ['worker-assigned-delivery', customerId, workerId, deliveryId],
+    queryFn: async () => {
+      const data = await fetchWorkerAssignedDelivery(customerId!, workerId);
+      if (!deliveryId) return data;
+      return data && data.id === deliveryId ? data : null;
+    },
+    enabled: !!customerId && !!workerId,
+  });
   const activeProducts = useMemo(
     () => (lookups?.products ?? []).filter((p) => p.status === 'active' && p.defaultPrice > 0),
     [lookups]
   );
-
-  const [items, setItems] = useState<Record<string, number>>({});
+  const [extraItems, setExtraItems] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState('');
+  const [paymentReceived, setPaymentReceived] = useState<number>(0);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank_transfer' | 'online' | 'card' | 'other'>('cash');
+  const [paymentNotes, setPaymentNotes] = useState('');
   const isQrVerified = searchParams.get('qrVerified') === '1';
   const qrToken = searchParams.get('qrToken') || '';
 
-  const createMutation = useMutation({
-    mutationFn: createDelivery,
+  const completeMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof completeDeliveryRuntime>[1] }) =>
+      completeDeliveryRuntime(id, payload),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['worker-dashboard', workerId] }),
         queryClient.invalidateQueries({ queryKey: ['client-dashboard', customerId] }),
         queryClient.invalidateQueries({ queryKey: ['deliveries'] }),
       ]);
-      toast({ title: 'Delivery recorded', description: 'Customer and dashboard data has been updated.' });
+      toast({ title: 'Delivery completed', description: 'Assigned delivery, payment and stock are updated.' });
       navigate('/worker');
     },
     onError: (error) => {
       toast({
-        title: 'Failed to record delivery',
+        title: 'Failed to complete delivery',
         description: error instanceof Error ? error.message : 'Unexpected API error',
         variant: 'destructive',
       });
@@ -62,11 +75,12 @@ export default function QuickDeliverPage() {
   });
 
   if (!customerId) return <div className="p-8 text-center text-muted-foreground">Invalid customer link</div>;
-  if (customerLoading || lookupsLoading) return <div className="p-8 text-center text-muted-foreground">Loading customer data...</div>;
+  if (customerLoading || lookupsLoading || assignedLoading) return <div className="p-8 text-center text-muted-foreground">Loading customer data...</div>;
   if (customerError || !customer) return <div className="p-8 text-center text-muted-foreground">Customer not found</div>;
+  if (!assignedDelivery) return <div className="p-8 text-center text-muted-foreground">No assigned pending delivery found for this customer.</div>;
 
   const updateQty = (productId: string, delta: number) => {
-    setItems(prev => {
+    setExtraItems(prev => {
       const next = { ...prev };
       const val = (next[productId] || 0) + delta;
       if (val <= 0) delete next[productId];
@@ -75,13 +89,14 @@ export default function QuickDeliverPage() {
     });
   };
 
-  const total = Object.entries(items).reduce((sum, [pid, qty]) => {
+  const assignedTotal = assignedDelivery.totalAmount;
+  const extraTotal = Object.entries(extraItems).reduce((sum, [pid, qty]) => {
     const product = activeProducts.find(p => p.id === pid);
     return sum + (product?.defaultPrice || 0) * qty;
   }, 0);
-
-  const walletAfter = Math.max(0, customer.walletBalance - total);
-  const amountDue = Math.max(0, total - customer.walletBalance);
+  const total = assignedTotal + extraTotal;
+  const dueBeforeCollection = Math.max(0, total - assignedDelivery.walletDeduction);
+  const amountDue = Math.max(0, dueBeforeCollection - Number(paymentReceived || 0));
 
   const handleConfirm = () => {
     if (!isQrVerified || !qrToken) {
@@ -92,16 +107,12 @@ export default function QuickDeliverPage() {
       });
       return;
     }
-    if (Object.keys(items).length === 0) {
-      toast({ title: 'Select at least one product', variant: 'destructive' });
-      return;
-    }
     if (!workerId) {
       toast({ title: 'Worker account missing', description: 'Please login again.', variant: 'destructive' });
       return;
     }
 
-    const deliveryItems = Object.entries(items)
+    const runtimeExtraItems = Object.entries(extraItems)
       .map(([productId, quantity]) => {
         const product = activeProducts.find((p) => p.id === productId);
         if (!product || quantity <= 0) return null;
@@ -113,22 +124,15 @@ export default function QuickDeliverPage() {
       })
       .filter((item): item is { productId: string; quantity: number; unitPrice: number } => !!item);
 
-    if (deliveryItems.length === 0) {
-      toast({ title: 'Invalid products', description: 'Please select at least one valid product.', variant: 'destructive' });
-      return;
-    }
-
-    createMutation.mutate({
-      customerId: customer.id,
-      workerId,
-      requireQrVerification: true,
-      qrToken,
-      status: amountDue > 0 ? 'partially_delivered' : 'delivered',
-      paymentStatus: amountDue > 0 ? 'partial' : 'paid',
-      walletDeduction: Math.min(total, customer.walletBalance),
-      deliveryDate: new Date().toISOString().slice(0, 10),
-      notes: notes.trim() || undefined,
-      items: deliveryItems,
+    completeMutation.mutate({
+      id: (assignedDelivery as any).dbId || assignedDelivery.id,
+      payload: {
+        extraItems: runtimeExtraItems,
+        paymentReceivedAmount: Number(paymentReceived || 0),
+        paymentMethod,
+        paymentNotes: paymentNotes.trim() || undefined,
+        notes: notes.trim() || undefined,
+      },
     });
   };
 
@@ -182,10 +186,23 @@ export default function QuickDeliverPage() {
         {/* Products */}
         {isQrVerified && (
         <div>
-          <h3 className="text-sm font-semibold mb-2">Select Products</h3>
+          <h3 className="text-sm font-semibold mb-2">Assigned Items</h3>
+          <div className="space-y-2 mb-4">
+            {assignedDelivery.items.map((item) => (
+              <div key={`${item.productId}-${item.productName}`} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{item.productName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.quantity} x Rs {item.unitPrice} = Rs {item.total}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <h3 className="text-sm font-semibold mb-2">Add Extra Items (Optional)</h3>
           <div className="space-y-2">
             {activeProducts.map(p => {
-              const qty = items[p.id] || 0;
+              const qty = extraItems[p.id] || 0;
               return (
                 <div key={p.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
                   <div>
@@ -224,10 +241,49 @@ export default function QuickDeliverPage() {
         {/* Summary */}
         {isQrVerified && total > 0 && (
           <div className="bg-card border border-border rounded-lg p-4 space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Assigned Total</span><span>Rs {assignedTotal}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Extra Items</span><span>Rs {extraTotal}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-semibold">Rs {total}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Wallet Deduction</span><span className="text-accent">-Rs {Math.min(total, customer.walletBalance)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Wallet Deduction</span><span className="text-accent">-Rs {assignedDelivery.walletDeduction}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Collected Now</span><span>-Rs {Number(paymentReceived || 0)}</span></div>
             {amountDue > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Amount Due</span><span className="text-destructive font-semibold">Rs {amountDue}</span></div>}
-            <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Balance After</span><span>Rs {walletAfter}</span></div>
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Payment Method (if collected now)</p>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="online">Online</option>
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Payment Received Now</p>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paymentReceived}
+                  onChange={(e) => setPaymentReceived(Number(e.target.value) || 0)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs"
+                />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Payment Note (optional)</p>
+              <input
+                type="text"
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                placeholder="e.g. customer paid cash separately"
+                className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -237,7 +293,7 @@ export default function QuickDeliverPage() {
         <Button
           onClick={handleConfirm}
           className="w-full h-14 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-semibold"
-          disabled={!isQrVerified || Object.keys(items).length === 0 || createMutation.isPending}
+          disabled={!isQrVerified || completeMutation.isPending}
         >
           <Check className="w-5 h-5 mr-2" /> Confirm Delivery · Rs {total}
         </Button>

@@ -2,7 +2,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import KPICard from '@/components/shared/KPICard';
 import { BarChart3, TrendingUp, DollarSign, Truck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchReportsCharts, fetchReportsOverview } from '@/lib/operationsApi';
+import { fetchInactiveCustomersReport, fetchReportsCharts, fetchReportsOverview } from '@/lib/operationsApi';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -18,10 +18,13 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
 export default function ReportsPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [walkInGapDays, setWalkInGapDays] = useState(10);
   const setQuickRange = (mode: 'day' | 'week' | 'month') => {
     const now = new Date();
     const end = now.toISOString().slice(0, 10);
@@ -48,6 +51,41 @@ export default function ReportsPage() {
     queryKey: ['reports-charts', filters.from, filters.to],
     queryFn: () => fetchReportsCharts(filters),
   });
+  const { data: inactiveData, isFetching: inactiveLoading } = useQuery({
+    queryKey: ['reports-inactive-customers', filters.from, filters.to, walkInGapDays],
+    queryFn: () => fetchInactiveCustomersReport({ ...filters, walkInGapDays }),
+  });
+
+  const canExport = !!fromDate && !!toDate;
+
+  const exportRows = useMemo(() => {
+    const revenue = chartData?.revenueTrend ?? [];
+    const volume = chartData?.deliveryVolume ?? [];
+    return revenue.map((r) => {
+      const vol = volume.find((v) => v.day === r.day);
+      return {
+        Date: r.day,
+        Revenue: r.revenue,
+        Deliveries: vol?.deliveries ?? 0,
+      };
+    });
+  }, [chartData]);
+
+  const handleExport = (format: 'csv' | 'xlsx') => {
+    if (!canExport) {
+      toast.error('Select From and To date before export.');
+      return;
+    }
+    if (!exportRows.length) {
+      toast.error('No report data found for selected range.');
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Reports');
+    const name = `reports-${fromDate}-to-${toDate}.${format}`;
+    XLSX.writeFile(wb, name, { bookType: format });
+  };
 
   return (
     <div>
@@ -64,6 +102,8 @@ export default function ReportsPage() {
         <Button type="button" variant="outline" onClick={() => setQuickRange('day')}>Day</Button>
         <Button type="button" variant="outline" onClick={() => setQuickRange('week')}>Week</Button>
         <Button type="button" variant="outline" onClick={() => setQuickRange('month')}>Month</Button>
+        <Button type="button" variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
+        <Button type="button" variant="outline" onClick={() => handleExport('xlsx')}>Export Excel</Button>
       </div>
       {isError && (
         <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm">
@@ -109,6 +149,65 @@ export default function ReportsPage() {
                 <Bar dataKey="deliveries" fill="#16a34a" />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+      <div className="mt-6 bg-card border border-border rounded-md p-6 space-y-4">
+        <div className="flex flex-wrap items-end gap-3 justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Inactive Customer Tracking</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Customers active in previous month but inactive in current month, and walk-ins who stopped coming.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <Label>Walk-in inactivity days</Label>
+            <Input
+              type="number"
+              min="1"
+              value={walkInGapDays}
+              onChange={(e) => setWalkInGapDays(Math.max(1, Number(e.target.value) || 10))}
+              className="w-40"
+            />
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Period: {inactiveData?.period.previousMonth ?? '-'} → {inactiveData?.period.currentMonth ?? '-'}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="border border-border rounded-md p-4">
+            <h4 className="text-sm font-medium mb-2">
+              Inactive Registered ({inactiveData?.inactiveRegisteredCustomers.length ?? 0})
+            </h4>
+            <div className="space-y-2 max-h-56 overflow-auto">
+              {(inactiveData?.inactiveRegisteredCustomers ?? []).map((row) => (
+                <div key={row.id} className="text-xs border border-border rounded px-2 py-1">
+                  <p className="font-medium">{row.name} ({row.customerId})</p>
+                  <p className="text-muted-foreground">{row.area} · {row.phone}</p>
+                  <p className="text-muted-foreground">Last order: {row.lastOrderDate}</p>
+                </div>
+              ))}
+              {!inactiveLoading && !(inactiveData?.inactiveRegisteredCustomers?.length) && (
+                <p className="text-xs text-muted-foreground">No inactive registered customers for selected range.</p>
+              )}
+            </div>
+          </div>
+          <div className="border border-border rounded-md p-4">
+            <h4 className="text-sm font-medium mb-2">
+              Inactive Walk-ins ({inactiveData?.inactiveWalkIns.length ?? 0})
+            </h4>
+            <div className="space-y-2 max-h-56 overflow-auto">
+              {(inactiveData?.inactiveWalkIns ?? []).map((row) => (
+                <div key={`${row.name}-${row.lastSeen}`} className="text-xs border border-border rounded px-2 py-1">
+                  <p className="font-medium">{row.name}</p>
+                  <p className="text-muted-foreground">Active days: {row.activeDays} · Last seen: {row.lastSeen}</p>
+                  <p className="text-muted-foreground">Days inactive: {row.daysSinceLast} · Total: Rs {row.totalAmount.toLocaleString()}</p>
+                </div>
+              ))}
+              {!inactiveLoading && !(inactiveData?.inactiveWalkIns?.length) && (
+                <p className="text-xs text-muted-foreground">No inactive walk-ins for selected range.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>

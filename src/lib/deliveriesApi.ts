@@ -54,3 +54,27 @@ export async function updateDelivery(
   });
   return json.data;
 }
+
+export async function fetchWorkerAssignedDelivery(customerId: string, workerId: string): Promise<Delivery | null> {
+  const params = new URLSearchParams({ customerId, workerId });
+  const json = await apiFetch<{ data: Delivery | null }>(`/api/deliveries/worker-assigned?${params.toString()}`);
+  return json.data;
+}
+
+export async function completeDeliveryRuntime(
+  id: string,
+  body: {
+    extraItems?: Array<{ productId: string; quantity: number; unitPrice?: number }>;
+    paymentReceivedAmount?: number;
+    paymentMethod?: 'cash' | 'bank_transfer' | 'online' | 'card' | 'other';
+    referenceId?: string;
+    paymentNotes?: string;
+    notes?: string;
+  }
+): Promise<Delivery> {
+  const json = await apiFetch<{ data: Delivery }>(`/api/deliveries/${encodeURIComponent(id)}/runtime-complete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return json.data;
+}

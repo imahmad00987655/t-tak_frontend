@@ -44,6 +44,29 @@ export interface ReportsChartsDto {
   deliveryVolume: Array<{ day: string; deliveries: number }>;
 }
 
+export interface InactiveCustomersReportDto {
+  period: {
+    previousMonth: string;
+    currentMonth: string;
+  };
+  inactiveRegisteredCustomers: Array<{
+    id: string;
+    customerId: string;
+    name: string;
+    phone: string;
+    area: string;
+    lastOrderDate: string;
+  }>;
+  inactiveWalkIns: Array<{
+    name: string;
+    firstSeen: string;
+    lastSeen: string;
+    activeDays: number;
+    totalAmount: number;
+    daysSinceLast: number;
+  }>;
+}
+
 export interface DailyClosingSummaryDto {
   date: string;
   totalDeliveries: number;
@@ -172,6 +195,20 @@ export async function fetchReportsCharts(filters?: { from?: string; to?: string 
   if (filters?.to) params.set('to', filters.to);
   const q = params.toString() ? `?${params.toString()}` : '';
   const json = await apiFetch<{ data: ReportsChartsDto }>(`/api/reports/charts${q}`);
+  return json.data;
+}
+
+export async function fetchInactiveCustomersReport(filters?: {
+  from?: string;
+  to?: string;
+  walkInGapDays?: number;
+}): Promise<InactiveCustomersReportDto> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  if (filters?.walkInGapDays) params.set('walkInGapDays', String(filters.walkInGapDays));
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: InactiveCustomersReportDto }>(`/api/reports/inactive-customers${q}`);
   return json.data;
 }
 

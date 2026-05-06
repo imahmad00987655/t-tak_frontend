@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import DataTable from '@/components/shared/DataTable';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
@@ -16,6 +16,15 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createDelivery, fetchDeliveries, fetchDeliveryLookups, updateDelivery } from '@/lib/deliveriesApi';
 import type { Delivery } from '@/types';
+
+function getKarachiNow() {
+  const now = new Date();
+  const karachi = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+  return {
+    date: karachi.toISOString().slice(0, 10),
+    time: karachi.toTimeString().slice(0, 5),
+  };
+}
 
 export default function DeliveriesPage() {
   const queryClient = useQueryClient();
@@ -60,6 +69,7 @@ export default function DeliveriesPage() {
     register,
     handleSubmit,
     reset,
+    getValues,
     setValue,
     formState: { errors },
   } = useForm<DeliveryFormValues>({
@@ -67,8 +77,8 @@ export default function DeliveriesPage() {
     defaultValues: {
       customerId: '',
       workerId: '',
-      deliveryDate: new Date().toISOString().slice(0, 10),
-      deliveryTime: '',
+      deliveryDate: getKarachiNow().date,
+      deliveryTime: getKarachiNow().time,
       periodStartDate: '',
       periodEndDate: '',
       advanceAmount: 0,
@@ -121,8 +131,8 @@ export default function DeliveriesPage() {
       reset({
         customerId: '',
         workerId: '',
-        deliveryDate: new Date().toISOString().slice(0, 10),
-        deliveryTime: '',
+        deliveryDate: getKarachiNow().date,
+        deliveryTime: getKarachiNow().time,
         periodStartDate: '',
         periodEndDate: '',
         advanceAmount: 0,
@@ -185,6 +195,13 @@ export default function DeliveriesPage() {
       })),
     });
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const now = getKarachiNow();
+    setValue('deliveryTime', now.time);
+    if (!getValues('deliveryDate')) setValue('deliveryDate', now.date);
+  }, [open, getValues, setValue]);
 
   return (
     <div>
