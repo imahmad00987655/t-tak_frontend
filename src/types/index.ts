@@ -75,6 +75,7 @@ export interface Delivery {
   totalAmount: number;
   walletDeduction: number;
   amountDue: number;
+  remainingWalletBalance?: number;
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   deliveryDate: string;
   deliveryTime?: string;

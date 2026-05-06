@@ -2,7 +2,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import KPICard from '@/components/shared/KPICard';
 import { BarChart3, TrendingUp, DollarSign, Truck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchInactiveCustomersReport, fetchReportsCharts, fetchReportsOverview } from '@/lib/operationsApi';
+import { fetchInactiveCustomersReport, fetchReportsCharts, fetchReportsDetailed, fetchReportsOverview } from '@/lib/operationsApi';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -20,11 +20,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { fetchDeliveryLookups } from '@/lib/deliveriesApi';
 
 export default function ReportsPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [walkInGapDays, setWalkInGapDays] = useState(10);
+  const [customerId, setCustomerId] = useState('');
+  const [productId, setProductId] = useState('');
+  const [workerId, setWorkerId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const setQuickRange = (mode: 'day' | 'week' | 'month') => {
     const now = new Date();
     const end = now.toISOString().slice(0, 10);
@@ -54,6 +59,20 @@ export default function ReportsPage() {
   const { data: inactiveData, isFetching: inactiveLoading } = useQuery({
     queryKey: ['reports-inactive-customers', filters.from, filters.to, walkInGapDays],
     queryFn: () => fetchInactiveCustomersReport({ ...filters, walkInGapDays }),
+  });
+  const { data: lookups } = useQuery({
+    queryKey: ['delivery-lookups'],
+    queryFn: fetchDeliveryLookups,
+  });
+  const { data: detailsData } = useQuery({
+    queryKey: ['reports-details', filters.from, filters.to, customerId, productId, workerId, paymentMethod],
+    queryFn: () => fetchReportsDetailed({
+      ...filters,
+      customerId: customerId || undefined,
+      productId: productId || undefined,
+      workerId: workerId || undefined,
+      paymentMethod: paymentMethod || undefined,
+    }),
   });
 
   const canExport = !!fromDate && !!toDate;
@@ -102,6 +121,44 @@ export default function ReportsPage() {
         <Button type="button" variant="outline" onClick={() => setQuickRange('day')}>Day</Button>
         <Button type="button" variant="outline" onClick={() => setQuickRange('week')}>Week</Button>
         <Button type="button" variant="outline" onClick={() => setQuickRange('month')}>Month</Button>
+        <div className="space-y-1">
+          <Label>Customer</Label>
+          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">All</option>
+            {(lookups?.customers ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Product</Label>
+          <select value={productId} onChange={(e) => setProductId(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">All</option>
+            {(lookups?.products ?? []).map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Worker</Label>
+          <select value={workerId} onChange={(e) => setWorkerId(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">All</option>
+            {(lookups?.workers ?? []).map((w) => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Payment Method</Label>
+          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">All</option>
+            <option value="cash">Cash</option>
+            <option value="online">Online</option>
+            <option value="card">Card</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
         <Button type="button" variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
         <Button type="button" variant="outline" onClick={() => handleExport('xlsx')}>Export Excel</Button>
       </div>
@@ -152,10 +209,56 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card border border-border rounded-md p-4">
+          <h3 className="text-sm font-semibold mb-3">Customer-wise Report</h3>
+          <div className="space-y-2 max-h-56 overflow-auto">
+            {(detailsData?.customerReport ?? []).map((row) => (
+              <div key={row.id} className="text-xs border border-border rounded p-2">
+                <p className="font-medium">{row.name} ({row.customerId})</p>
+                <p className="text-muted-foreground">Deliveries: {row.deliveries} · Revenue: Rs {row.revenue.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-md p-4">
+          <h3 className="text-sm font-semibold mb-3">Product-wise Report</h3>
+          <div className="space-y-2 max-h-56 overflow-auto">
+            {(detailsData?.productReport ?? []).map((row) => (
+              <div key={row.id} className="text-xs border border-border rounded p-2">
+                <p className="font-medium">{row.name}</p>
+                <p className="text-muted-foreground">Qty Sold: {row.quantitySold} · Revenue: Rs {row.revenue.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-md p-4">
+          <h3 className="text-sm font-semibold mb-3">Field Worker Performance</h3>
+          <div className="space-y-2 max-h-56 overflow-auto">
+            {(detailsData?.workerPerformance ?? []).map((row) => (
+              <div key={row.id} className="text-xs border border-border rounded p-2">
+                <p className="font-medium">{row.name}</p>
+                <p className="text-muted-foreground">Deliveries: {row.deliveries} · Revenue: Rs {row.revenue.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-md p-4">
+          <h3 className="text-sm font-semibold mb-3">Payment Methods</h3>
+          <div className="space-y-2 max-h-56 overflow-auto">
+            {(detailsData?.paymentMethods ?? []).map((row) => (
+              <div key={row.method} className="text-xs border border-border rounded p-2">
+                <p className="font-medium capitalize">{row.method}</p>
+                <p className="text-muted-foreground">Count: {row.totalCount} · Amount: Rs {row.totalAmount.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="mt-6 bg-card border border-border rounded-md p-6 space-y-4">
         <div className="flex flex-wrap items-end gap-3 justify-between">
           <div>
-            <h3 className="text-sm font-semibold">Inactive Customer Tracking</h3>
+            <h3 className="text-sm font-semibold">Inactive / At-Risk Customers</h3>
             <p className="text-xs text-muted-foreground mt-1">
               Customers active in previous month but inactive in current month, and walk-ins who stopped coming.
             </p>
@@ -185,6 +288,9 @@ export default function ReportsPage() {
                   <p className="font-medium">{row.name} ({row.customerId})</p>
                   <p className="text-muted-foreground">{row.area} · {row.phone}</p>
                   <p className="text-muted-foreground">Last order: {row.lastOrderDate}</p>
+                  <p className="text-muted-foreground">
+                    Trend: {row.purchaseFrequencyTrend} · LTV: Rs {row.lifetimeValue.toLocaleString()} · Tag: {row.tag}
+                  </p>
                 </div>
               ))}
               {!inactiveLoading && !(inactiveData?.inactiveRegisteredCustomers?.length) && (
@@ -201,7 +307,9 @@ export default function ReportsPage() {
                 <div key={`${row.name}-${row.lastSeen}`} className="text-xs border border-border rounded px-2 py-1">
                   <p className="font-medium">{row.name}</p>
                   <p className="text-muted-foreground">Active days: {row.activeDays} · Last seen: {row.lastSeen}</p>
-                  <p className="text-muted-foreground">Days inactive: {row.daysSinceLast} · Total: Rs {row.totalAmount.toLocaleString()}</p>
+                  <p className="text-muted-foreground">
+                    Days inactive: {row.daysSinceLast} · Total: Rs {row.totalAmount.toLocaleString()} · Tag: {row.tag}
+                  </p>
                 </div>
               ))}
               {!inactiveLoading && !(inactiveData?.inactiveWalkIns?.length) && (

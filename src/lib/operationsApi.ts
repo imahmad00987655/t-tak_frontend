@@ -56,6 +56,9 @@ export interface InactiveCustomersReportDto {
     phone: string;
     area: string;
     lastOrderDate: string;
+    purchaseFrequencyTrend: 'declining' | 'stable' | 'growing';
+    lifetimeValue: number;
+    tag: 'inactive' | 'at_risk' | 'active';
   }>;
   inactiveWalkIns: Array<{
     name: string;
@@ -64,6 +67,34 @@ export interface InactiveCustomersReportDto {
     activeDays: number;
     totalAmount: number;
     daysSinceLast: number;
+    tag: 'inactive' | 'lost_customer';
+  }>;
+}
+
+export interface ReportsDetailedDto {
+  customerReport: Array<{
+    id: string;
+    customerId: string;
+    name: string;
+    deliveries: number;
+    revenue: number;
+  }>;
+  productReport: Array<{
+    id: string;
+    name: string;
+    quantitySold: number;
+    revenue: number;
+  }>;
+  workerPerformance: Array<{
+    id: string;
+    name: string;
+    deliveries: number;
+    revenue: number;
+  }>;
+  paymentMethods: Array<{
+    method: string;
+    totalAmount: number;
+    totalCount: number;
   }>;
 }
 
@@ -209,6 +240,26 @@ export async function fetchInactiveCustomersReport(filters?: {
   if (filters?.walkInGapDays) params.set('walkInGapDays', String(filters.walkInGapDays));
   const q = params.toString() ? `?${params.toString()}` : '';
   const json = await apiFetch<{ data: InactiveCustomersReportDto }>(`/api/reports/inactive-customers${q}`);
+  return json.data;
+}
+
+export async function fetchReportsDetailed(filters?: {
+  from?: string;
+  to?: string;
+  customerId?: string;
+  productId?: string;
+  workerId?: string;
+  paymentMethod?: string;
+}): Promise<ReportsDetailedDto> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  if (filters?.customerId) params.set('customerId', filters.customerId);
+  if (filters?.productId) params.set('productId', filters.productId);
+  if (filters?.workerId) params.set('workerId', filters.workerId);
+  if (filters?.paymentMethod) params.set('paymentMethod', filters.paymentMethod);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const json = await apiFetch<{ data: ReportsDetailedDto }>(`/api/reports/details${q}`);
   return json.data;
 }
 

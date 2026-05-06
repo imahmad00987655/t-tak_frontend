@@ -52,6 +52,7 @@ export interface WorkerDashboardDto {
     status: string;
     totalAmount: number;
     deliveryDate: string;
+    deliveryTime?: string;
     periodStartDate?: string;
     periodEndDate?: string;
     advanceAmount?: number;

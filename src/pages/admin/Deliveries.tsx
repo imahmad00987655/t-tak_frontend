@@ -161,7 +161,10 @@ export default function DeliveriesPage() {
     { key: 'customerName', label: 'Customer', sortable: true, render: (d: Delivery) => <span className="font-medium">{d.customerName}</span> },
     { key: 'area', label: 'Area', sortable: true },
     { key: 'workerName', label: 'Worker', sortable: true },
-    { key: 'totalAmount', label: 'Amount', sortable: true, render: (d: Delivery) => `Rs ${d.totalAmount.toLocaleString()}` },
+    { key: 'totalAmount', label: 'Product Amount', sortable: true, render: (d: Delivery) => `Rs ${d.totalAmount.toLocaleString()}` },
+    { key: 'advanceAmount', label: 'Advance Used', sortable: true, render: (d: Delivery) => `Rs ${Number(d.advanceAmount || 0).toLocaleString()}` },
+    { key: 'walletDeduction', label: 'Wallet Deduction', sortable: true, render: (d: Delivery) => `Rs ${d.walletDeduction.toLocaleString()}` },
+    { key: 'remainingWalletBalance', label: 'Wallet Balance', sortable: true, render: (d: Delivery) => `Rs ${Number(d.remainingWalletBalance || 0).toLocaleString()}` },
     { key: 'paymentStatus', label: 'Payment', render: (d: Delivery) => <StatusBadge status={d.paymentStatus} /> },
     { key: 'deliveryDate', label: 'Date', sortable: true },
     {
@@ -446,7 +449,14 @@ export default function DeliveriesPage() {
                 <div><span className="text-muted-foreground">Customer:</span> {selectedDelivery.customerName}</div>
                 <div><span className="text-muted-foreground">Worker:</span> {selectedDelivery.workerName}</div>
                 <div><span className="text-muted-foreground">Date:</span> {selectedDelivery.deliveryDate}</div>
+                <div><span className="text-muted-foreground">Time:</span> {selectedDelivery.deliveryTime || '—'}</div>
                 <div><span className="text-muted-foreground">Status:</span> {selectedDelivery.status}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><span className="text-muted-foreground">Product Amount:</span> Rs {selectedDelivery.totalAmount}</div>
+                <div><span className="text-muted-foreground">Advance Used:</span> Rs {Number(selectedDelivery.advanceAmount || 0)}</div>
+                <div><span className="text-muted-foreground">Wallet Deduction:</span> Rs {selectedDelivery.walletDeduction}</div>
+                <div><span className="text-muted-foreground">Wallet Balance:</span> Rs {Number(selectedDelivery.remainingWalletBalance || 0)}</div>
               </div>
               <div className="rounded-md border border-border p-2">
                 {selectedDelivery.items.map((item, idx) => (

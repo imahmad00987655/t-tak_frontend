@@ -81,7 +81,9 @@ export default function WorkerDashboard() {
                   </p>
                 )}
                 <div className="flex justify-between mt-2 text-xs">
-                  <span className="text-muted-foreground">{d.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ')}</span>
+                  <span className="text-muted-foreground">
+                    {d.deliveryDate}{d.deliveryTime ? ` · ${d.deliveryTime}` : ''} · {d.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ')}
+                  </span>
                   <span className="font-medium">Rs {d.totalAmount}</span>
                 </div>
               </Link>
