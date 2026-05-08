@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Phone, MapPin, User, Droplets } from 'lucide-react';
+import { Droplets } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,8 @@ interface Props {
 }
 
 const BRAND_PRIMARY = '#1c3a5e';
+const BRAND_PRIMARY_DARK = '#15293f';
 const BRAND_ACCENT = '#2c7a5a';
-const BRAND_LIGHT = '#f4f8fb';
 
 export default function CustomerQrCardDialog({ customer, open, onOpenChange }: Props) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function CustomerQrCardDialog({ customer, open, onOpenChange }: P
     let cancelled = false;
     QRCode.toDataURL(cardUrl, {
       width: 320,
-      margin: 1,
+      margin: 0,
       errorCorrectionLevel: 'H',
       color: { dark: BRAND_PRIMARY, light: '#ffffff' },
     })
@@ -57,16 +57,18 @@ export default function CustomerQrCardDialog({ customer, open, onOpenChange }: P
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl print:border-0 print:shadow-none print:max-w-full print:p-0 [&>button]:print:hidden">
+      <DialogContent className="sm:max-w-md print:border-0 print:shadow-none print:max-w-full print:p-0 [&>button]:print:hidden">
         <style>{`
           @media print {
-            @page { size: auto; margin: 12mm; }
+            @page { size: 88.9mm 50.8mm; margin: 0; }
             body * { visibility: hidden; }
             .ttok-print-card, .ttok-print-card * { visibility: visible; }
             .ttok-print-card {
               position: absolute;
-              left: 0; top: 0; right: 0;
-              margin: 0 auto;
+              left: 0; top: 0;
+              margin: 0;
+              border-radius: 0 !important;
+              box-shadow: none !important;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
@@ -79,123 +81,213 @@ export default function CustomerQrCardDialog({ customer, open, onOpenChange }: P
         <DialogHeader className="print:hidden">
           <DialogTitle>Customer QR card</DialogTitle>
           <DialogDescription>
-            Branded T-Tok card with QR code and customer details.
+            Standard business card · 3.5" × 2" (88.9 × 50.8 mm)
           </DialogDescription>
         </DialogHeader>
         {customer && (
           <div className="space-y-4">
-            <div
-              className="ttok-print-card mx-auto w-full max-w-[640px] overflow-hidden rounded-2xl bg-white text-black shadow-lg"
-              style={{ border: `2px solid ${BRAND_PRIMARY}` }}
-            >
-              {/* Header */}
+            {/* Preview wrapper centers the actual-size card on screen */}
+            <div className="flex items-center justify-center rounded-md bg-slate-100 p-4 print:bg-white print:p-0">
               <div
-                className="flex items-center justify-between px-6 py-4 text-white"
-                style={{ background: `linear-gradient(90deg, ${BRAND_PRIMARY} 0%, #2a5285 100%)` }}
+                className="ttok-print-card relative overflow-hidden bg-white text-black"
+                style={{
+                  width: '88.9mm',
+                  height: '50.8mm',
+                  borderRadius: '2.5mm',
+                  boxShadow: '0 10px 30px rgba(28,58,94,0.18)',
+                  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+                }}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-11 w-11 items-center justify-center rounded-full"
-                    style={{ backgroundColor: BRAND_ACCENT }}
-                  >
-                    <Droplets className="h-6 w-6 text-white" />
+                {/* Left navy panel */}
+                <div
+                  className="absolute inset-y-0 left-0 flex flex-col items-center justify-between text-white"
+                  style={{
+                    width: '32mm',
+                    padding: '3mm 2mm',
+                    background: `linear-gradient(160deg, ${BRAND_PRIMARY} 0%, ${BRAND_PRIMARY_DARK} 100%)`,
+                  }}
+                >
+                  {/* Brand */}
+                  <div className="flex w-full items-center justify-center" style={{ gap: '1mm' }}>
+                    <Droplets style={{ width: '3mm', height: '3mm', color: '#9fd6b4' }} />
+                    <span style={{ fontSize: '3.6mm', fontWeight: 800, letterSpacing: '0.5mm' }}>
+                      T-TOK
+                    </span>
                   </div>
-                  <div className="leading-tight">
-                    <div className="text-2xl font-extrabold tracking-wide">T-TOK</div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] opacity-80">
-                      Pure Drinking Water
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-widest opacity-70">Customer Card</div>
-                  <div className="text-sm font-semibold">#{customer.customerId}</div>
-                </div>
-              </div>
 
-              {/* Accent strip */}
-              <div className="h-1.5 w-full" style={{ backgroundColor: BRAND_ACCENT }} />
-
-              {/* Body */}
-              <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-[auto,1fr]">
-                {/* Left: QR */}
-                <div className="flex flex-col items-center">
+                  {/* QR */}
                   <div
-                    className="rounded-md px-3 py-1 text-xs font-bold uppercase tracking-widest text-white"
-                    style={{ backgroundColor: BRAND_PRIMARY }}
+                    className="bg-white"
+                    style={{
+                      width: '26mm',
+                      height: '26mm',
+                      padding: '1mm',
+                      borderRadius: '1.5mm',
+                    }}
                   >
-                    T-TOK SCAN
-                  </div>
-                  <div
-                    className="mt-2 rounded-xl bg-white p-3"
-                    style={{ border: `2px solid ${BRAND_PRIMARY}` }}
-                  >
-                    {error && <p className="text-sm text-red-600">{error}</p>}
+                    {error && (
+                      <p style={{ fontSize: '2mm' }} className="text-red-600">
+                        {error}
+                      </p>
+                    )}
                     {!error && dataUrl && (
-                      <img src={dataUrl} alt="Customer QR" className="h-[200px] w-[200px]" />
+                      <img
+                        src={dataUrl}
+                        alt="Customer QR"
+                        style={{ width: '24mm', height: '24mm', display: 'block' }}
+                      />
                     )}
                     {!error && !dataUrl && (
-                      <div className="flex h-[200px] w-[200px] items-center justify-center text-xs text-gray-500">
-                        Generating...
+                      <div
+                        className="flex items-center justify-center text-gray-400"
+                        style={{ width: '24mm', height: '24mm', fontSize: '2mm' }}
+                      >
+                        ...
                       </div>
                     )}
                   </div>
-                  <div className="mt-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+
+                  <span
+                    style={{
+                      fontSize: '1.8mm',
+                      letterSpacing: '0.4mm',
+                      opacity: 0.85,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     Scan to verify
-                  </div>
+                  </span>
                 </div>
 
-                {/* Right: Customer details */}
-                <div className="flex flex-col justify-center">
-                  <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: BRAND_ACCENT }}>
-                    Registered Customer
+                {/* Right info area */}
+                <div
+                  className="absolute inset-y-0 right-0 flex flex-col"
+                  style={{
+                    left: '32mm',
+                    padding: '3.5mm 4mm',
+                  }}
+                >
+                  {/* Top accent bar */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: '1mm',
+                      background: `linear-gradient(90deg, ${BRAND_ACCENT}, ${BRAND_PRIMARY})`,
+                    }}
+                  />
+
+                  {/* Tagline + ID */}
+                  <div className="flex items-center justify-between">
+                    <span
+                      style={{
+                        fontSize: '1.9mm',
+                        fontWeight: 700,
+                        letterSpacing: '0.5mm',
+                        textTransform: 'uppercase',
+                        color: BRAND_ACCENT,
+                      }}
+                    >
+                      Customer Card
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '2.2mm',
+                        fontWeight: 700,
+                        color: BRAND_PRIMARY,
+                        background: '#eaf2f8',
+                        padding: '0.4mm 1.4mm',
+                        borderRadius: '1mm',
+                      }}
+                    >
+                      #{customer.customerId}
+                    </span>
                   </div>
-                  <div className="mt-1 text-2xl font-bold leading-tight" style={{ color: BRAND_PRIMARY }}>
+
+                  {/* Name */}
+                  <div
+                    style={{
+                      marginTop: '1.8mm',
+                      fontSize: '4.4mm',
+                      fontWeight: 800,
+                      lineHeight: 1.1,
+                      color: BRAND_PRIMARY,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
                     {customer.name}
                   </div>
 
-                  <div className="mt-4 space-y-2.5 text-sm">
-                    <div className="flex items-start gap-2">
-                      <User className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_ACCENT }} />
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                          Customer ID
-                        </div>
-                        <div className="font-medium text-gray-900">{customer.customerId}</div>
-                      </div>
+                  {/* Divider */}
+                  <div
+                    style={{
+                      marginTop: '1.5mm',
+                      height: '0.3mm',
+                      width: '14mm',
+                      background: BRAND_ACCENT,
+                      borderRadius: '0.2mm',
+                    }}
+                  />
+
+                  {/* Contact rows */}
+                  <div style={{ marginTop: '1.5mm', fontSize: '2.4mm', lineHeight: 1.35 }}>
+                    <div className="flex" style={{ gap: '1.4mm' }}>
+                      <span style={{ color: '#6b7280', minWidth: '8mm', fontWeight: 600 }}>
+                        Phone
+                      </span>
+                      <span style={{ color: '#111', fontWeight: 600 }}>
+                        {customer.phone || '-'}
+                      </span>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <Phone className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_ACCENT }} />
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                          Phone
-                        </div>
-                        <div className="font-medium text-gray-900">{customer.phone || '-'}</div>
-                      </div>
+                    <div className="flex" style={{ gap: '1.4mm', marginTop: '0.6mm' }}>
+                      <span style={{ color: '#6b7280', minWidth: '8mm', fontWeight: 600 }}>
+                        Area
+                      </span>
+                      <span style={{ color: '#111', fontWeight: 600 }}>
+                        {customer.area || '-'}
+                      </span>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_ACCENT }} />
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                          Address
-                        </div>
-                        <div className="font-medium text-gray-900">{customer.address || '-'}</div>
-                        {customer.area && (
-                          <div className="text-xs text-gray-600">{customer.area}</div>
-                        )}
-                      </div>
+                    <div className="flex" style={{ gap: '1.4mm', marginTop: '0.6mm' }}>
+                      <span style={{ color: '#6b7280', minWidth: '8mm', fontWeight: 600 }}>
+                        Addr
+                      </span>
+                      <span
+                        style={{
+                          color: '#111',
+                          fontWeight: 500,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          maxWidth: '42mm',
+                        }}
+                      >
+                        {customer.address || '-'}
+                      </span>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Footer */}
-              <div
-                className="flex items-center justify-between px-6 py-2.5 text-[11px] text-white"
-                style={{ backgroundColor: BRAND_PRIMARY }}
-              >
-                <span className="font-medium tracking-wide">Fresh · Pure · Reliable</span>
-                <span className="opacity-80">www.t-tok.com</span>
+                  {/* Footer */}
+                  <div
+                    style={{
+                      marginTop: 'auto',
+                      paddingTop: '1.5mm',
+                      borderTop: '0.2mm solid #e5e7eb',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '1.9mm',
+                      color: '#4b5563',
+                    }}
+                  >
+                    <span style={{ letterSpacing: '0.3mm' }}>Fresh · Pure · Reliable</span>
+                    <span style={{ color: BRAND_PRIMARY, fontWeight: 700 }}>www.t-tok.com</span>
+                  </div>
+                </div>
               </div>
             </div>
 
