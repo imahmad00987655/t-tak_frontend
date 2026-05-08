@@ -50,8 +50,6 @@ export default function QuickDeliverPage() {
   const [paymentReceived, setPaymentReceived] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank_transfer' | 'online' | 'card' | 'other'>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
-  const isQrVerified = searchParams.get('qrVerified') === '1';
-  const qrToken = searchParams.get('qrToken') || '';
 
   const completeMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof completeDeliveryRuntime>[1] }) =>
@@ -99,14 +97,6 @@ export default function QuickDeliverPage() {
   const amountDue = Math.max(0, dueBeforeCollection - Number(paymentReceived || 0));
 
   const handleConfirm = () => {
-    if (!isQrVerified || !qrToken) {
-      toast({
-        title: 'QR scan required',
-        description: 'Scan customer QR first before adding delivery items.',
-        variant: 'destructive',
-      });
-      return;
-    }
     if (!workerId) {
       toast({ title: 'Worker account missing', description: 'Please login again.', variant: 'destructive' });
       return;
@@ -162,29 +152,7 @@ export default function QuickDeliverPage() {
           </div>
         </div>
 
-        {!isQrVerified && (
-          <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-            <p className="font-medium">Scan required before delivery</p>
-            <p className="text-muted-foreground mt-1">You must scan this customer's QR before product entry.</p>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-3"
-              onClick={() =>
-                navigate(
-                  `/worker/scan?customerId=${encodeURIComponent(customer.id)}&returnTo=${encodeURIComponent(
-                    `/worker/quick-deliver/${customer.id}`
-                  )}`
-                )
-              }
-            >
-              Scan Customer QR
-            </Button>
-          </div>
-        )}
-
         {/* Products */}
-        {isQrVerified && (
         <div>
           <h3 className="text-sm font-semibold mb-2">Assigned Items</h3>
           <div className="space-y-2 mb-4">
@@ -223,10 +191,8 @@ export default function QuickDeliverPage() {
             })}
           </div>
         </div>
-        )}
 
         {/* Notes */}
-        {isQrVerified && (
         <div>
           <label className="text-xs text-muted-foreground">Delivery Notes (optional)</label>
           <textarea
@@ -236,10 +202,9 @@ export default function QuickDeliverPage() {
             className="w-full h-16 px-3 py-2 mt-1 rounded-lg border border-input bg-background text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
-        )}
 
         {/* Summary */}
-        {isQrVerified && total > 0 && (
+        {total > 0 && (
           <div className="bg-card border border-border rounded-lg p-4 space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Assigned Total</span><span>Rs {assignedTotal}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Extra Items</span><span>Rs {extraTotal}</span></div>
@@ -293,7 +258,7 @@ export default function QuickDeliverPage() {
         <Button
           onClick={handleConfirm}
           className="w-full h-14 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-semibold"
-          disabled={!isQrVerified || completeMutation.isPending}
+          disabled={completeMutation.isPending}
         >
           <Check className="w-5 h-5 mr-2" /> Confirm Delivery · Rs {total}
         </Button>

@@ -4,7 +4,7 @@ import { apiFetch } from './api';
 export interface DeliveryLookupData {
   customers: Array<{ id: string; customerId: string; name: string; area: string; status: string; walletBalance: number }>;
   workers: Array<{ id: string; name: string; assignedArea: string }>;
-  products: Array<{ id: string; name: string; defaultPrice: number; status: string }>;
+  products: Array<{ id: string; name: string; defaultPrice: number; status: string; unit?: string }>;
 }
 
 export async function fetchDeliveries(): Promise<Delivery[]> {
