@@ -21,6 +21,148 @@ const BRAND_PRIMARY = '#1c3a5e';
 const BRAND_PRIMARY_DARK = '#15293f';
 const BRAND_ACCENT = '#2c7a5a';
 
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildPrintCardHtml(customer: CustomerDto, qrDataUrl: string) {
+  const safe = (v?: string) => escapeHtml(v || '-');
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>T-Tok Customer Card</title>
+<style>
+  @page { size: 88.9mm 50.8mm; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 88.9mm; height: 50.8mm;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #111;
+  }
+  .card {
+    position: relative;
+    width: 88.9mm; height: 50.8mm;
+    overflow: hidden;
+    background: #fff;
+  }
+  .left {
+    position: absolute; inset: 0 auto 0 0;
+    width: 32mm;
+    padding: 3mm 2mm;
+    background: linear-gradient(160deg, ${BRAND_PRIMARY} 0%, ${BRAND_PRIMARY_DARK} 100%);
+    color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 1mm;
+    font-size: 3.6mm; font-weight: 800; letter-spacing: 0.5mm;
+  }
+  .drop {
+    width: 3mm; height: 3mm;
+    fill: #9fd6b4;
+  }
+  .qr-tile {
+    width: 26mm; height: 26mm; padding: 1mm;
+    background: #fff; border-radius: 1.5mm;
+  }
+  .qr-tile img { width: 24mm; height: 24mm; display: block; }
+  .scan-label {
+    font-size: 1.8mm; letter-spacing: 0.4mm; opacity: 0.85; text-transform: uppercase;
+  }
+  .right {
+    position: absolute; top: 0; bottom: 0; left: 32mm; right: 0;
+    padding: 3.5mm 4mm;
+    display: flex; flex-direction: column;
+  }
+  .accent-strip {
+    position: absolute; top: 0; left: 0; right: 0; height: 1mm;
+    background: linear-gradient(90deg, ${BRAND_ACCENT}, ${BRAND_PRIMARY});
+  }
+  .row-top {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tag {
+    font-size: 1.9mm; font-weight: 700; letter-spacing: 0.5mm;
+    text-transform: uppercase; color: ${BRAND_ACCENT};
+  }
+  .id-badge {
+    font-size: 2.2mm; font-weight: 700; color: ${BRAND_PRIMARY};
+    background: #eaf2f8; padding: 0.4mm 1.4mm; border-radius: 1mm;
+  }
+  .name {
+    margin-top: 1.8mm;
+    font-size: 4.4mm; font-weight: 800; line-height: 1.1;
+    color: ${BRAND_PRIMARY};
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .underline {
+    margin-top: 1.5mm; height: 0.3mm; width: 14mm;
+    background: ${BRAND_ACCENT}; border-radius: 0.2mm;
+  }
+  .info { margin-top: 1.5mm; font-size: 2.4mm; line-height: 1.35; }
+  .info .row { display: flex; gap: 1.4mm; margin-top: 0.6mm; }
+  .info .row:first-child { margin-top: 0; }
+  .info .lbl { color: #6b7280; min-width: 8mm; font-weight: 600; }
+  .info .val { color: #111; font-weight: 600; }
+  .info .addr {
+    color: #111; font-weight: 500;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; max-width: 42mm;
+  }
+  .footer {
+    margin-top: auto; padding-top: 1.5mm;
+    border-top: 0.2mm solid #e5e7eb;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 1.9mm; color: #4b5563;
+  }
+  .footer .web { color: ${BRAND_PRIMARY}; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="left">
+      <div class="brand">
+        <svg class="drop" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C12 2 5 11 5 16a7 7 0 0 0 14 0c0-5-7-14-7-14z"/>
+        </svg>
+        <span>T-TOK</span>
+      </div>
+      <div class="qr-tile"><img src="${qrDataUrl}" alt="QR" /></div>
+      <span class="scan-label">Scan to verify</span>
+    </div>
+    <div class="right">
+      <div class="accent-strip"></div>
+      <div class="row-top">
+        <span class="tag">Customer Card</span>
+        <span class="id-badge">#${safe(customer.customerId)}</span>
+      </div>
+      <div class="name">${safe(customer.name)}</div>
+      <div class="underline"></div>
+      <div class="info">
+        <div class="row"><span class="lbl">Phone</span><span class="val">${safe(customer.phone)}</span></div>
+        <div class="row"><span class="lbl">Area</span><span class="val">${safe(customer.area)}</span></div>
+        <div class="row"><span class="lbl">Addr</span><span class="addr">${safe(customer.address)}</span></div>
+      </div>
+      <div class="footer">
+        <span>Fresh &middot; Pure &middot; Reliable</span>
+        <span class="web">www.t-tok.com</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 export default function CustomerQrCardDialog({ customer, open, onOpenChange }: Props) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,32 +194,37 @@ export default function CustomerQrCardDialog({ customer, open, onOpenChange }: P
   }, [open, cardUrl]);
 
   const handlePrint = () => {
-    window.print();
+    if (!customer || !dataUrl) return;
+    const cardHtml = buildPrintCardHtml(customer, dataUrl);
+    const w = window.open('', '_blank', 'width=420,height=300');
+    if (!w) {
+      // popup blocked — fallback to current-window print
+      window.print();
+      return;
+    }
+    w.document.open();
+    w.document.write(cardHtml);
+    w.document.close();
+    w.focus();
+    // Wait for image inside popup to fully render before printing
+    const tryPrint = () => {
+      try {
+        w.print();
+        setTimeout(() => w.close(), 300);
+      } catch {
+        /* ignore */
+      }
+    };
+    if (w.document.readyState === 'complete') {
+      setTimeout(tryPrint, 200);
+    } else {
+      w.addEventListener('load', () => setTimeout(tryPrint, 100));
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md print:border-0 print:shadow-none print:max-w-full print:p-0 [&>button]:print:hidden">
-        <style>{`
-          @media print {
-            @page { size: 88.9mm 50.8mm; margin: 0; }
-            body * { visibility: hidden; }
-            .ttok-print-card, .ttok-print-card * { visibility: visible; }
-            .ttok-print-card {
-              position: absolute;
-              left: 0; top: 0;
-              margin: 0;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          }
-          .ttok-print-card {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-        `}</style>
+      <DialogContent className="sm:max-w-md [&>button]:print:hidden">
         <DialogHeader className="print:hidden">
           <DialogTitle>Customer QR card</DialogTitle>
           <DialogDescription>
