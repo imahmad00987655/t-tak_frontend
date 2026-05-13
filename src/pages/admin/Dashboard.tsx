@@ -12,6 +12,9 @@ import {
   TrendingUp,
   Wallet,
   Package,
+  Banknote,
+  HandCoins,
+  Receipt,
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -75,6 +78,37 @@ export default function AdminDashboard() {
               value={`Rs ${s.monthlyRevenue.toLocaleString()}`}
               icon={TrendingUp}
               variant="accent"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <KPICard
+              title="Advance Collected Today"
+              value={`Rs ${Number(s.todayAdvanceCollected ?? 0).toLocaleString()}`}
+              subtitle="Cash taken at delivery"
+              icon={HandCoins}
+              variant="accent"
+            />
+            <KPICard
+              title="Wallet Deducted Today"
+              value={`Rs ${Number(s.todayWalletDeduction ?? 0).toLocaleString()}`}
+              subtitle="Paid via wallet"
+              icon={Wallet}
+              variant="info"
+            />
+            <KPICard
+              title="Total Cash In Today"
+              value={`Rs ${Number(s.todayCashCollected ?? 0).toLocaleString()}`}
+              subtitle="Advance + collections + recharges"
+              icon={Banknote}
+              variant="accent"
+            />
+            <KPICard
+              title="Today's Outstanding"
+              value={`Rs ${Number(s.todayOutstanding ?? 0).toLocaleString()}`}
+              subtitle="Pending from today's deliveries"
+              icon={Receipt}
+              variant="warning"
             />
           </div>
 
@@ -172,24 +206,54 @@ export default function AdminDashboard() {
 
             <div className="bg-card border border-border rounded-md">
               <div className="px-4 py-3 border-b border-border">
-                <h3 className="text-sm font-semibold">Financial Overview</h3>
+                <h3 className="text-sm font-semibold">Today's Cash Flow Breakdown</h3>
               </div>
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-3 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Outstanding Dues</span>
+                  <span className="text-muted-foreground">Gross Sales (Today)</span>
+                  <span className="font-semibold">Rs {Number(s.todayRevenue).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Advance Collected (at delivery creation)</span>
+                  <span className="font-semibold text-accent">
+                    Rs {Number(s.todayAdvanceCollected ?? 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Cash Collected at Runtime (worker)</span>
+                  <span className="font-semibold text-accent">
+                    Rs {Number(s.todayDeliveryCollected ?? 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Wallet Recharge (new top-ups)</span>
+                  <span className="font-semibold text-info">
+                    Rs {Number(s.todayWalletRecharge ?? 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Wallet Used on Deliveries</span>
+                  <span className="font-semibold">
+                    Rs {Number(s.todayWalletDeduction ?? 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-t border-border pt-3">
+                  <span className="font-medium">Outstanding (Today)</span>
                   <span className="text-lg font-semibold text-destructive">
+                    Rs {Number(s.todayOutstanding ?? 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Total Outstanding (All-time)</span>
+                  <span className="font-semibold text-destructive">
                     Rs {s.outstandingDues.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total Wallet Balance</span>
-                  <span className="text-lg font-semibold text-accent">
+                  <span className="text-muted-foreground">Total Wallet Balance</span>
+                  <span className="font-semibold text-accent">
                     Rs {s.totalWalletBalance.toLocaleString()}
                   </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Today's Revenue</span>
-                  <span className="text-lg font-semibold">Rs {s.todayRevenue.toLocaleString()}</span>
                 </div>
               </div>
             </div>

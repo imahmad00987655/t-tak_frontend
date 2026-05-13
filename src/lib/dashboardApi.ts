@@ -9,6 +9,12 @@ export interface AdminDashboardSummaryDto {
   inProgressDeliveries: number;
   failedDeliveries: number;
   todayRevenue: number;
+  todayAdvanceCollected?: number;
+  todayWalletDeduction?: number;
+  todayOutstanding?: number;
+  todayDeliveryCollected?: number;
+  todayWalletRecharge?: number;
+  todayCashCollected?: number;
   monthlyRevenue: number;
   outstandingDues: number;
   totalWalletBalance: number;

@@ -64,9 +64,33 @@ export default function DailyClosingPage() {
         <div className="bg-card border border-border rounded-md p-6 space-y-4">
           <h3 className="text-sm font-semibold">Financial Summary</h3>
           <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Revenue</span><span className="font-semibold text-accent">Rs {Number(data?.revenue || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Gross Sales (Revenue)</span><span className="font-semibold">Rs {Number(data?.revenue || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Advance Collected (at delivery creation)</span><span className="font-semibold text-accent">Rs {Number(data?.advanceCollected || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Cash at Runtime (worker collections)</span><span className="font-semibold text-accent">Rs {Number(data?.deliveryCollected || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Wallet Recharges</span><span className="font-semibold text-info">Rs {Number(data?.walletRecharge || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Wallet Deductions (on deliveries)</span><span className="font-semibold">Rs {Number(data?.walletDeduction || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between border-t border-border pt-3"><span className="font-medium">Total Cash Inflow</span><span className="font-semibold text-accent">Rs {Number(data?.cashCollected || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Outstanding (Today)</span><span className="font-semibold text-destructive">Rs {Number(data?.outstanding || 0).toLocaleString()}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Expenses</span><span className="font-semibold text-destructive">Rs {Number(data?.expenses || 0).toLocaleString()}</span></div>
-            <div className="flex justify-between border-t border-border pt-3"><span className="font-medium">Net</span><span className="font-semibold">Rs {Number(data?.net || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between border-t border-border pt-3"><span className="font-medium">Net (Revenue − Expenses)</span><span className="font-semibold">Rs {Number(data?.net || 0).toLocaleString()}</span></div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-md p-6 space-y-4">
+          <h3 className="text-sm font-semibold">Payments by Method</h3>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="rounded-md bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">Cash</p>
+              <p className="font-semibold text-accent mt-1">Rs {Number(data?.paymentBreakdown?.cash || 0).toLocaleString()}</p>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">Online</p>
+              <p className="font-semibold text-info mt-1">Rs {Number(data?.paymentBreakdown?.online || 0).toLocaleString()}</p>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground">Card</p>
+              <p className="font-semibold mt-1">Rs {Number(data?.paymentBreakdown?.card || 0).toLocaleString()}</p>
+            </div>
           </div>
         </div>
 

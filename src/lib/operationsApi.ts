@@ -105,6 +105,17 @@ export interface DailyClosingSummaryDto {
   failed: number;
   pending: number;
   revenue: number;
+  advanceCollected?: number;
+  walletDeduction?: number;
+  outstanding?: number;
+  deliveryCollected?: number;
+  walletRecharge?: number;
+  cashCollected?: number;
+  paymentBreakdown?: {
+    cash: number;
+    online: number;
+    card: number;
+  };
   expenses: number;
   net: number;
   isClosed: boolean;
