@@ -18,7 +18,6 @@ import { fetchDeliveries } from '@/lib/deliveriesApi';
 import { toast } from 'sonner';
 import CustomerQrCardDialog from '@/components/customers/CustomerQrCardDialog';
 import { fetchCustomerFormLookups } from '@/lib/routesApi';
-import { recordPayment } from '@/lib/financeApi';
 
 const editSchema = z.object({
   name: z.string().min(1),
@@ -42,7 +41,6 @@ export default function CustomerDetail() {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
-  const [manualAmount, setManualAmount] = useState(0);
 
   const { data: customer, isLoading, isError, error } = useQuery({
     queryKey: ['customer', id],
@@ -74,18 +72,6 @@ export default function CustomerDetail() {
     },
     onError: (e: Error) => toast.error(e.message || 'Update failed'),
   });
-  const paymentMut = useMutation({
-    mutationFn: recordPayment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customer', id] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      toast.success('Payment entry recorded');
-      setManualAmount(0);
-    },
-    onError: (e: Error) => toast.error(e.message || 'Failed to record payment'),
-  });
-
   const {
     register,
     handleSubmit,
@@ -421,16 +407,6 @@ export default function CustomerDetail() {
               <div className="flex justify-between"><span className="text-muted-foreground">Outstanding Balance</span><span className="text-destructive">Rs {Number(customer.outstandingBalance ?? 0).toLocaleString()}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Credit Balance</span><span className="text-accent">Rs {Number(customer.creditBalance ?? customer.walletBalance ?? 0).toLocaleString()}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Debit Balance</span><span>Rs {Number(customer.debitBalance ?? 0).toLocaleString()}</span></div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-border flex items-center gap-2">
-              <Input type="number" min="0" value={manualAmount} onChange={(e) => setManualAmount(Number(e.target.value || 0))} placeholder="Manual payment amount" />
-              <Button
-                size="sm"
-                onClick={() => paymentMut.mutate({ customerId: id, amount: manualAmount, method: 'cash', paymentType: 'manual', notes: 'Manual payment entry from customer details' })}
-                disabled={paymentMut.isPending || manualAmount <= 0}
-              >
-                Add Payment
-              </Button>
             </div>
           </div>
           <div className="bg-card border border-border rounded-md p-5">

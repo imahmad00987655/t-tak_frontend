@@ -58,16 +58,6 @@ export default function BillingPage() {
     },
     onError: (e: Error) => toast.error(e.message || 'Could not record walk-in payment'),
   });
-  const invoicePaymentMutation = useMutation({
-    mutationFn: recordPayment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      toast.success('Payment entry added');
-    },
-    onError: (e: Error) => toast.error(e.message || 'Could not add payment'),
-  });
-
   const totalBilled = invoices.reduce((s, i) => s + i.totalAmount, 0);
   const totalPaid = invoices.reduce((s, i) => s + i.walletDeduction, 0);
   const totalDue = invoices.reduce((s, i) => s + i.amountDue, 0);
@@ -195,7 +185,8 @@ export default function BillingPage() {
               </div>
               <div className="space-y-1.5 text-sm border-t border-border pt-3">
                 <div className="flex justify-between"><span className="text-muted-foreground">Invoice Amount</span><span className="font-semibold">Rs {selected.totalAmount.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Paid Amount</span><span className="text-accent">Rs {Number(selected.paidAmount ?? selected.walletDeduction).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Wallet Deduction</span><span className="text-accent">- Rs {selected.walletDeduction.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Paid Amount</span><span className="text-accent">Rs {Number(selected.paidAmount ?? selected.totalAmount - selected.amountDue).toLocaleString()}</span></div>
                 <div className="flex justify-between font-semibold"><span>Remaining Amount</span><span className={selected.amountDue > 0 ? 'text-destructive' : ''}>Rs {Number(selected.remainingAmount ?? selected.amountDue).toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Credit Balance</span><span>Rs {Number(selected.creditBalance ?? 0).toLocaleString()}</span></div>
                 <div className="pt-1">
@@ -223,51 +214,6 @@ export default function BillingPage() {
                     Promo active: Spend Rs {settings.promotions.spendAmount}, get {settings.promotions.spendFreeQty} bottles free.
                   </div>
                 )}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={invoicePaymentMutation.isPending || selected.amountDue <= 0}
-                  onClick={() =>
-                    invoicePaymentMutation.mutate({
-                      customerId: selected.customerId,
-                      amount: selected.amountDue,
-                      method: 'cash',
-                      referenceId: selected.deliveryId,
-                      paymentType: 'receive_payment',
-                      notes: `Receive payment for ${selected.id}`,
-                    })
-                  }
-                >
-                  Receive Payment
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={invoicePaymentMutation.isPending || selected.amountDue <= 0}
-                  onClick={() =>
-                    invoicePaymentMutation.mutate({
-                      customerId: selected.customerId,
-                      amount: selected.amountDue,
-                      method: 'cash',
-                      referenceId: selected.deliveryId,
-                      paymentType: 'mark_paid',
-                      notes: `Mark as paid for ${selected.id}`,
-                    })
-                  }
-                >
-                  Mark as Paid
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => toast.info('Credit is auto adjusted via FIFO payments')}>
-                  Credit
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => toast.info('Debit view available in customer details')}>
-                  Debit
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => toast.info('Payment history is listed above')}>
-                  View Payment History
-                </Button>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setSelected(null)}>Close</Button>
