@@ -4,11 +4,11 @@ import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
 import KPICard from '@/components/shared/KPICard';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { FileText, DollarSign, AlertCircle, CheckCircle, Eye } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { FileText, DollarSign, AlertCircle, CheckCircle, Eye, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchInvoices, recordPayment, type InvoiceDto } from '@/lib/financeApi';
+import { fetchInvoices, updateInvoice, recordPayment, type InvoiceDto } from '@/lib/financeApi';
 import { fetchSettings } from '@/lib/settingsApi';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,10 +17,36 @@ import { fetchDeliveryLookups } from '@/lib/deliveriesApi';
 import { Minus, Plus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
+function getInvoicePaidAmount(inv: InvoiceDto) {
+  return Number(inv.paidAmount ?? inv.totalAmount - inv.amountDue);
+}
+
+function deriveStatusFromAmounts(total: number, due: number): 'paid' | 'partial' | 'unpaid' {
+  if (due <= 0) return 'paid';
+  if (due >= total) return 'unpaid';
+  return 'partial';
+}
+
+function validateInvoiceEdit(total: number, paid: number, due: number, status: 'paid' | 'partial' | 'unpaid') {
+  if (total < 0 || paid < 0 || due < 0) return 'Amounts cannot be negative';
+  if (Math.abs(paid + due - total) > 0.01) return 'Paid + Due must equal Total';
+  const expected = deriveStatusFromAmounts(total, due);
+  if (status !== expected) {
+    return `Status "${status}" does not match amounts. Expected "${expected}" for these values.`;
+  }
+  return null;
+}
+
 export default function BillingPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState<InvoiceDto | null>(null);
+  const [editing, setEditing] = useState<InvoiceDto | null>(null);
+  const [editTotal, setEditTotal] = useState(0);
+  const [editPaid, setEditPaid] = useState(0);
+  const [editDue, setEditDue] = useState(0);
+  const [editStatus, setEditStatus] = useState<'paid' | 'partial' | 'unpaid'>('unpaid');
+  const [editError, setEditError] = useState('');
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -58,8 +84,19 @@ export default function BillingPage() {
     },
     onError: (e: Error) => toast.error(e.message || 'Could not record walk-in payment'),
   });
+  const updateInvoiceMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof updateInvoice>[1] }) => updateInvoice(id, body),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+      toast.success('Invoice updated');
+      setEditing(null);
+      if (selected?.id === updated.id) setSelected(updated);
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not update invoice'),
+  });
   const totalBilled = invoices.reduce((s, i) => s + i.totalAmount, 0);
-  const totalPaid = invoices.reduce((s, i) => s + i.walletDeduction, 0);
+  const totalPaid = invoices.reduce((s, i) => s + getInvoicePaidAmount(i), 0);
   const totalDue = invoices.reduce((s, i) => s + i.amountDue, 0);
   const walkInComputedTotal = Object.entries(walkInItems).reduce((sum, [productId, qty]) => {
     const product = walkInProducts.find((p) => p.id === productId);
@@ -81,7 +118,7 @@ export default function BillingPage() {
     { key: 'customerName', label: 'Customer', sortable: true, render: (inv: InvoiceDto) => <span className="font-medium">{inv.customerName}</span> },
     { key: 'area', label: 'Area', sortable: true },
     { key: 'totalAmount', label: 'Total', sortable: true, render: (inv: InvoiceDto) => `Rs ${inv.totalAmount.toLocaleString()}` },
-    { key: 'walletDeduction', label: 'Paid', render: (inv: InvoiceDto) => <span className="text-accent">Rs {inv.walletDeduction.toLocaleString()}</span> },
+    { key: 'paidAmount', label: 'Paid', render: (inv: InvoiceDto) => <span className="text-accent">Rs {getInvoicePaidAmount(inv).toLocaleString()}</span> },
     { key: 'amountDue', label: 'Due', render: (inv: InvoiceDto) => <span className={inv.amountDue > 0 ? 'text-destructive font-medium' : 'text-muted-foreground'}>Rs {inv.amountDue.toLocaleString()}</span> },
     { key: 'paymentStatus', label: 'Status', render: (inv: InvoiceDto) => <StatusBadge status={inv.paymentStatus} /> },
     { key: 'date', label: 'Date', sortable: true },
@@ -94,6 +131,62 @@ export default function BillingPage() {
   useEffect(() => {
     if (selectedByQuery) setSelected(selectedByQuery);
   }, [selectedByQuery]);
+
+  const openEditInvoice = (inv: InvoiceDto) => {
+    const paid = getInvoicePaidAmount(inv);
+    setEditing(inv);
+    setEditTotal(inv.totalAmount);
+    setEditPaid(paid);
+    setEditDue(inv.amountDue);
+    setEditStatus(inv.paymentStatus);
+    setEditError('');
+  };
+
+  const handleEditTotalChange = (value: number) => {
+    const total = Math.max(0, value);
+    setEditTotal(total);
+    const due = Math.max(0, Number((total - editPaid).toFixed(2)));
+    setEditDue(due);
+    setEditStatus(deriveStatusFromAmounts(total, due));
+    setEditError('');
+  };
+
+  const handleEditPaidChange = (value: number) => {
+    const paid = Math.max(0, value);
+    const due = Math.max(0, Number((editTotal - paid).toFixed(2)));
+    setEditPaid(paid);
+    setEditDue(due);
+    setEditStatus(deriveStatusFromAmounts(editTotal, due));
+    setEditError('');
+  };
+
+  const handleEditDueChange = (value: number) => {
+    const due = Math.max(0, value);
+    const paid = Math.max(0, Number((editTotal - due).toFixed(2)));
+    setEditDue(due);
+    setEditPaid(paid);
+    setEditStatus(deriveStatusFromAmounts(editTotal, due));
+    setEditError('');
+  };
+
+  const handleSaveInvoiceEdit = () => {
+    if (!editing) return;
+    const validationError = validateInvoiceEdit(editTotal, editPaid, editDue, editStatus);
+    if (validationError) {
+      setEditError(validationError);
+      toast.error(validationError);
+      return;
+    }
+    updateInvoiceMutation.mutate({
+      id: editing.deliveryDbId || editing.id,
+      body: {
+        totalAmount: editTotal,
+        paidAmount: editPaid,
+        amountDue: editDue,
+        paymentStatus: editStatus,
+      },
+    });
+  };
 
   return (
     <div>
@@ -139,9 +232,14 @@ export default function BillingPage() {
           searchKeys={['id', 'customerName', 'area']}
           onRowClick={(inv) => setSelected(inv as InvoiceDto)}
           actions={(inv: InvoiceDto) => (
-            <button className="p-1.5 rounded hover:bg-muted" title="View Invoice" onClick={(e) => { e.stopPropagation(); setSelected(inv); }}>
-              <Eye className="w-4 h-4 text-muted-foreground" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button className="p-1.5 rounded hover:bg-muted" title="View Invoice" onClick={(e) => { e.stopPropagation(); setSelected(inv); }}>
+                <Eye className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button className="p-1.5 rounded hover:bg-muted" title="Edit Invoice" onClick={(e) => { e.stopPropagation(); openEditInvoice(inv); }}>
+                <Pencil className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
           )}
         />
       )}
@@ -216,9 +314,66 @@ export default function BillingPage() {
                 )}
               </div>
               <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => openEditInvoice(selected)}>Edit</Button>
                 <Button variant="outline" size="sm" onClick={() => setSelected(null)}>Close</Button>
                 <Button size="sm" onClick={() => toast.success('Invoice downloaded')}>Download PDF</Button>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Edit Invoice {editing?.id}</DialogTitle>
+            <DialogDescription>Update total, paid, due amounts and payment status. Paid + Due must equal Total.</DialogDescription>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-muted-foreground">Customer:</span> {editing.customerName}</div>
+                <div><span className="text-muted-foreground">Delivery:</span> {editing.deliveryId}</div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label>Total (Rs)</Label>
+                  <Input type="number" min="0" step="0.01" value={editTotal} onChange={(e) => handleEditTotalChange(Number(e.target.value || 0))} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Paid (Rs)</Label>
+                  <Input type="number" min="0" step="0.01" value={editPaid} onChange={(e) => handleEditPaidChange(Number(e.target.value || 0))} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Due (Rs)</Label>
+                  <Input type="number" min="0" step="0.01" value={editDue} onChange={(e) => handleEditDueChange(Number(e.target.value || 0))} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Payment Status</Label>
+                <Select value={editStatus} onValueChange={(v) => { setEditStatus(v as 'paid' | 'partial' | 'unpaid'); setEditError(''); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="partial">Partial</SelectItem>
+                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Suggested status: {deriveStatusFromAmounts(editTotal, editDue)}
+                </p>
+              </div>
+              {editError && <p className="text-xs text-destructive">{editError}</p>}
+              <div className="rounded-md border border-border p-3 text-xs space-y-1">
+                <div className="flex justify-between"><span>Check</span><span>Paid + Due = Rs {(editPaid + editDue).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Total</span><span>Rs {editTotal.toLocaleString()}</span></div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+                <Button onClick={handleSaveInvoiceEdit} disabled={updateInvoiceMutation.isPending}>
+                  {updateInvoiceMutation.isPending ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </DialogFooter>
             </div>
           )}
         </DialogContent>

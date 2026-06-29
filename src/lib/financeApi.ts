@@ -38,6 +38,7 @@ export interface WalletCustomerDto {
 
 export interface InvoiceDto {
   id: string;
+  deliveryDbId?: string;
   deliveryId: string;
   customerName: string;
   customerId: string;
@@ -115,6 +116,23 @@ export async function fetchInvoices(filters?: { from?: string; to?: string }): P
   if (filters?.to) params.set('to', filters.to);
   const q = params.toString() ? `?${params.toString()}` : '';
   const json = await apiFetch<{ data: InvoiceDto[] }>(`/api/billing/invoices${q}`);
+  return json.data;
+}
+
+export async function updateInvoice(
+  id: string,
+  body: {
+    totalAmount: number;
+    paidAmount: number;
+    amountDue: number;
+    paymentStatus: 'paid' | 'partial' | 'unpaid';
+    actor?: string;
+  }
+): Promise<InvoiceDto> {
+  const json = await apiFetch<{ data: InvoiceDto }>(`/api/billing/invoices/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
   return json.data;
 }
 
