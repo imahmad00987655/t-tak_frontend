@@ -19,13 +19,13 @@ import { fetchEmployeeLookups } from '@/lib/routesApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchManagedUsers, updateManagedUserPassword, updateManagedUserStatus } from '@/lib/settingsApi';
 
-const roleMap: Record<string, string> = { field_worker: 'Field Worker', staff: 'Plant Staff', admin: 'Admin' };
+const roleMap: Record<string, string> = { staff: 'Plant Staff', admin: 'Admin' };
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   phone: z.string().min(1, 'Phone is required'),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
-  role: z.enum(['field_worker', 'staff', 'admin']),
+  role: z.enum(['staff', 'admin']),
   assignedArea: z.string().optional(),
   assignedRoute: z.string().optional(),
   loginPhone: z.string().optional(),
@@ -60,7 +60,7 @@ export default function EmployeesPage() {
       name: '',
       phone: '',
       email: '',
-      role: 'field_worker',
+      role: 'staff',
       assignedArea: '',
       assignedRoute: '',
       loginPhone: '',
@@ -236,7 +236,6 @@ export default function EmployeesPage() {
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="field_worker">Field Worker</SelectItem>
                         <SelectItem value="staff">Plant Staff</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
@@ -342,7 +341,7 @@ export default function EmployeesPage() {
                     name: String(fd.get('name') || ''),
                     phone: String(fd.get('phone') || ''),
                     email: String(fd.get('email') || ''),
-                    role: String(fd.get('role') || 'field_worker') as 'field_worker' | 'staff' | 'admin',
+                    role: String(fd.get('role') || 'staff') as 'staff' | 'admin',
                     status: String(fd.get('status') || 'active') as 'active' | 'inactive',
                     assignedArea: String(fd.get('assignedArea') || ''),
                     assignedRoute: String(fd.get('assignedRoute') || ''),
@@ -375,7 +374,6 @@ export default function EmployeesPage() {
                     defaultValue={editEmployee.role}
                     className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                   >
-                    <option value="field_worker">Field Worker</option>
                     <option value="staff">Plant Staff</option>
                     <option value="admin">Admin</option>
                   </select>

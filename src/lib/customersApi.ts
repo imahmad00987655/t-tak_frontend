@@ -5,6 +5,11 @@ import { apiFetch } from './api';
 export interface CustomerDto extends Customer {
   qrToken?: string;
   qrCardUrl?: string;
+  totalPurchase?: number;
+  totalPaid?: number;
+  outstandingBalance?: number;
+  creditBalance?: number;
+  debitBalance?: number;
 }
 
 export async function fetchCustomers(): Promise<CustomerDto[]> {

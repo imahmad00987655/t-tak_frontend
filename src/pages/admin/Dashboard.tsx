@@ -11,7 +11,6 @@ import {
   DollarSign,
   TrendingUp,
   Wallet,
-  Package,
   Banknote,
   HandCoins,
   Receipt,
@@ -68,8 +67,8 @@ export default function AdminDashboard() {
               variant="info"
             />
             <KPICard
-              title="Today's Revenue"
-              value={`Rs ${s.todayRevenue.toLocaleString()}`}
+              title="Today's Sales"
+              value={`Rs ${Number(s.todaySales ?? s.todayRevenue ?? 0).toLocaleString()}`}
               icon={DollarSign}
               variant="accent"
             />
@@ -90,13 +89,6 @@ export default function AdminDashboard() {
               variant="accent"
             />
             <KPICard
-              title="Wallet Deducted Today"
-              value={`Rs ${Number(s.todayWalletDeduction ?? 0).toLocaleString()}`}
-              subtitle="Paid via wallet"
-              icon={Wallet}
-              variant="info"
-            />
-            <KPICard
               title="Total Cash In Today"
               value={`Rs ${Number(s.todayCashCollected ?? 0).toLocaleString()}`}
               subtitle="Advance + collections + recharges"
@@ -110,17 +102,29 @@ export default function AdminDashboard() {
               icon={Receipt}
               variant="warning"
             />
+            <KPICard
+              title="Today's 19L Bottles Delivered"
+              value={Number(s.delivered19LToday ?? 0).toLocaleString()}
+              icon={Truck}
+              variant="info"
+            />
+            <KPICard
+              title="Today's 15L Bottles Delivered"
+              value={Number(s.delivered15LToday ?? 0).toLocaleString()}
+              icon={Truck}
+              variant="info"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <KPICard title="Pending Deliveries" value={s.pendingDeliveries} icon={Clock} variant="warning" />
-            <KPICard title="Failed Deliveries" value={s.failedDeliveries} icon={AlertTriangle} variant="destructive" />
+            <KPICard title="Cancelled Deliveries" value={s.failedDeliveries} icon={AlertTriangle} variant="destructive" />
             <KPICard
               title="Wallet Balances"
               value={`Rs ${s.totalWalletBalance.toLocaleString()}`}
               icon={Wallet}
             />
-            <KPICard title="Low Stock Items" value={s.lowStockItems} icon={Package} variant="warning" />
+            <KPICard title="In Process Deliveries" value={s.inProgressDeliveries} icon={Truck} variant="info" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

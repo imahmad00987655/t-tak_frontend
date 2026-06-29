@@ -85,7 +85,9 @@ export default function ReportsPage() {
       return {
         Date: r.day,
         Revenue: r.revenue,
-        Deliveries: vol?.deliveries ?? 0,
+        Delivered19L: vol?.delivered19L ?? 0,
+        Delivered15L: vol?.delivered15L ?? 0,
+        Delivered500ml: vol?.delivered500ml ?? 0,
       };
     });
   }, [chartData]);
@@ -169,10 +171,10 @@ export default function ReportsPage() {
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KPICard title="Monthly Revenue" value={isLoading ? '...' : `Rs ${Number(data?.monthlyRevenue || 0).toLocaleString()}`} icon={DollarSign} variant="accent" />
-        <KPICard title="Total Deliveries" value={isLoading ? '...' : Number(data?.totalDeliveries || 0).toLocaleString()} subtitle="This month" icon={Truck} variant="info" />
+        <KPICard title="Total Sales" value={isLoading ? '...' : `Rs ${Number(data?.monthlyRevenue || 0).toLocaleString()}`} icon={DollarSign} variant="accent" />
+        <KPICard title="Total Expenses" value={isLoading ? '...' : `Rs ${Number(data?.monthlyExpenses || 0).toLocaleString()}`} subtitle="Selected range" icon={Truck} variant="info" />
         <KPICard title="Outstanding Dues" value={isLoading ? '...' : `Rs ${Number(data?.outstandingDues || 0).toLocaleString()}`} icon={TrendingUp} variant="warning" />
-        <KPICard title="Net Profit" value={isLoading ? '...' : `Rs ${Number(data?.netProfit || 0).toLocaleString()}`} subtitle="Est. this month" icon={BarChart3} variant="accent" />
+        <KPICard title="Total Profit" value={isLoading ? '...' : `Rs ${Number(data?.netProfit || 0).toLocaleString()}`} subtitle="Selected range" icon={BarChart3} variant="accent" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <KPICard title="Cash Revenue" value={`Rs ${Number(data?.paymentBreakdown?.cash || 0).toLocaleString()}`} icon={DollarSign} />
@@ -195,7 +197,7 @@ export default function ReportsPage() {
           </div>
         </div>
         <div className="bg-card border border-border rounded-md p-6">
-          <h3 className="text-sm font-semibold mb-4">Delivery Volume</h3>
+          <h3 className="text-sm font-semibold mb-4">Product-wise Delivery Volume</h3>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData?.deliveryVolume ?? []}>
@@ -203,7 +205,9 @@ export default function ReportsPage() {
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="deliveries" fill="#16a34a" />
+                <Bar dataKey="delivered19L" name="19L Delivered" fill="#16a34a" />
+                <Bar dataKey="delivered15L" name="15L Delivered" fill="#1d4ed8" />
+                <Bar dataKey="delivered500ml" name="500ml Delivered" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
           </div>

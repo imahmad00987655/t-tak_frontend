@@ -12,6 +12,7 @@ import { Eye, Edit, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createDelivery, fetchDeliveries, fetchDeliveryLookups, updateDelivery } from '@/lib/deliveriesApi';
@@ -27,6 +28,7 @@ function getKarachiNow() {
 }
 
 export default function DeliveriesPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
@@ -51,7 +53,7 @@ export default function DeliveriesPage() {
     periodStartDate: z.string().optional(),
     periodEndDate: z.string().optional(),
     advanceAmount: z.coerce.number().min(0).optional(),
-    status: z.enum(['pending', 'assigned', 'in_progress', 'delivered', 'partially_delivered', 'failed', 'cancelled']),
+    status: z.enum(['pending', 'in_process', 'delivered', 'cancelled']),
     paymentStatus: z.enum(['paid', 'partial', 'unpaid']),
     walletDeduction: z.coerce.number().min(0).optional(),
     notes: z.string().optional(),
@@ -228,6 +230,7 @@ export default function DeliveriesPage() {
           data={deliveries}
           columns={columns}
           searchKeys={['customerName', 'id', 'area', 'workerName']}
+          onRowClick={(d: Delivery) => navigate(`/admin/billing?delivery=${encodeURIComponent(d.id)}`)}
           actions={(d: Delivery) => (
             <div className="flex items-center gap-1">
               <button
@@ -497,10 +500,8 @@ export default function DeliveriesPage() {
                 <Label>Status</Label>
                 <select name="status" defaultValue={selectedDelivery.status} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
                   <option value="pending">Pending</option>
-                  <option value="assigned">Assigned</option>
-                  <option value="in_progress">In Progress</option>
+                  <option value="in_process">In Process</option>
                   <option value="delivered">Delivered</option>
-                  <option value="failed">Failed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>

@@ -28,6 +28,9 @@ export interface EmployeeDto {
 
 export interface ReportsOverviewDto {
   monthlyRevenue: number;
+  totalSales?: number;
+  totalExpenses?: number;
+  totalProfit?: number;
   totalDeliveries: number;
   outstandingDues: number;
   netProfit: number;
@@ -41,7 +44,7 @@ export interface ReportsOverviewDto {
 
 export interface ReportsChartsDto {
   revenueTrend: Array<{ day: string; revenue: number }>;
-  deliveryVolume: Array<{ day: string; deliveries: number }>;
+  deliveryVolume: Array<{ day: string; delivered19L: number; delivered15L: number; delivered500ml: number }>;
 }
 
 export interface InactiveCustomersReportDto {

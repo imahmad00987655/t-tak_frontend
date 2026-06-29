@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 
-type StatusType = 'active' | 'inactive' | 'pending' | 'assigned' | 'in_progress' | 'delivered' | 'partially_delivered' | 'failed' | 'cancelled' | 'paid' | 'partial' | 'unpaid' | 'open' | 'closed';
+type StatusType = 'active' | 'inactive' | 'pending' | 'assigned' | 'in_progress' | 'in_process' | 'delivered' | 'partially_delivered' | 'failed' | 'cancelled' | 'paid' | 'partial' | 'unpaid' | 'open' | 'closed';
 
 const statusStyles: Record<string, string> = {
   active: 'status-active',
@@ -14,6 +14,7 @@ const statusStyles: Record<string, string> = {
   open: 'status-pending',
   partial: 'status-pending',
   in_progress: 'bg-info/10 text-info',
+  in_process: 'bg-info/10 text-info',
   partially_delivered: 'bg-warning/10 text-warning',
   failed: 'status-failed',
   unpaid: 'status-failed',
@@ -25,6 +26,7 @@ const statusLabels: Record<string, string> = {
   pending: 'Pending',
   assigned: 'Assigned',
   in_progress: 'In Progress',
+  in_process: 'In Process',
   delivered: 'Delivered',
   partially_delivered: 'Partial',
   failed: 'Failed',

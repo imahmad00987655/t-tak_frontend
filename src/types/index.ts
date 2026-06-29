@@ -52,7 +52,7 @@ export interface CustomerPricing {
   customPrice: number;
 }
 
-export type DeliveryStatus = 'pending' | 'assigned' | 'in_progress' | 'delivered' | 'partially_delivered' | 'failed' | 'cancelled';
+export type DeliveryStatus = 'pending' | 'in_process' | 'in_progress' | 'delivered' | 'cancelled';
 
 export interface DeliveryItem {
   productId: string;

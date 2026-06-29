@@ -45,10 +45,14 @@ export interface InvoiceDto {
   workerName: string;
   items: DeliveryItem[];
   totalAmount: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  creditBalance?: number;
   walletDeduction: number;
   amountDue: number;
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   date: string;
+  paymentHistory?: PaymentDto[];
 }
 
 export async function fetchFinanceLookups(): Promise<{ customers: FinanceCustomerLookup[]; products: FinanceProductLookup[] }> {
@@ -71,6 +75,8 @@ export async function recordPayment(body: {
   customerId: string;
   walkInName?: string;
   amount: number;
+  deliveryId?: string;
+  paymentType?: 'receive_payment' | 'mark_paid' | 'credit' | 'debit' | 'manual';
   items?: Array<{ productId: string; quantity: number; unitPrice?: number }>;
   method: 'cash' | 'bank_transfer' | 'online' | 'card' | 'other';
   referenceId?: string;

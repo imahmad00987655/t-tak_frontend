@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import DataTable from '@/components/shared/DataTable';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
@@ -15,10 +15,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fetchDeliveryLookups } from '@/lib/deliveriesApi';
 import { Minus, Plus } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 export default function BillingPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState<InvoiceDto | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [fromDate, setFromDate] = useState('');
@@ -57,6 +58,15 @@ export default function BillingPage() {
     },
     onError: (e: Error) => toast.error(e.message || 'Could not record walk-in payment'),
   });
+  const invoicePaymentMutation = useMutation({
+    mutationFn: recordPayment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      toast.success('Payment entry added');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not add payment'),
+  });
 
   const totalBilled = invoices.reduce((s, i) => s + i.totalAmount, 0);
   const totalPaid = invoices.reduce((s, i) => s + i.walletDeduction, 0);
@@ -86,6 +96,14 @@ export default function BillingPage() {
     { key: 'paymentStatus', label: 'Status', render: (inv: InvoiceDto) => <StatusBadge status={inv.paymentStatus} /> },
     { key: 'date', label: 'Date', sortable: true },
   ];
+  const deliveryIdFromQuery = searchParams.get('delivery');
+  const selectedByQuery = useMemo(
+    () => invoices.find((inv) => inv.deliveryId === deliveryIdFromQuery || inv.id === deliveryIdFromQuery) ?? null,
+    [invoices, deliveryIdFromQuery]
+  );
+  useEffect(() => {
+    if (selectedByQuery) setSelected(selectedByQuery);
+  }, [selectedByQuery]);
 
   return (
     <div>
@@ -94,9 +112,6 @@ export default function BillingPage() {
         description="Invoice module: generated delivery bills. Payment entries are tracked separately in Payments."
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" asChild>
-              <Link to="/admin/returns-damages">Returns & Damages</Link>
-            </Button>
             <Button onClick={() => setWalkInOpen(true)}>Walk-in Billing</Button>
           </div>
         }
@@ -140,7 +155,16 @@ export default function BillingPage() {
           )}
         />
       )}
-      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
+      <Dialog
+        open={!!selected}
+        onOpenChange={() => {
+          setSelected(null);
+          if (deliveryIdFromQuery) {
+            searchParams.delete('delivery');
+            setSearchParams(searchParams, { replace: true });
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Invoice {selected?.id}</DialogTitle>
@@ -170,9 +194,25 @@ export default function BillingPage() {
                 </table>
               </div>
               <div className="space-y-1.5 text-sm border-t border-border pt-3">
-                <div className="flex justify-between"><span className="text-muted-foreground">Total Amount</span><span className="font-semibold">Rs {selected.totalAmount.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Wallet Deduction</span><span className="text-accent">- Rs {selected.walletDeduction.toLocaleString()}</span></div>
-                <div className="flex justify-between font-semibold"><span>Amount Due</span><span className={selected.amountDue > 0 ? 'text-destructive' : ''}>Rs {selected.amountDue.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Invoice Amount</span><span className="font-semibold">Rs {selected.totalAmount.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Paid Amount</span><span className="text-accent">Rs {Number(selected.paidAmount ?? selected.walletDeduction).toLocaleString()}</span></div>
+                <div className="flex justify-between font-semibold"><span>Remaining Amount</span><span className={selected.amountDue > 0 ? 'text-destructive' : ''}>Rs {Number(selected.remainingAmount ?? selected.amountDue).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Credit Balance</span><span>Rs {Number(selected.creditBalance ?? 0).toLocaleString()}</span></div>
+                <div className="pt-1">
+                  <p className="text-muted-foreground mb-1">Payment History</p>
+                  <div className="max-h-28 overflow-auto space-y-1">
+                    {(selected.paymentHistory ?? []).length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No payments against this invoice yet.</p>
+                    ) : (
+                      (selected.paymentHistory ?? []).map((p) => (
+                        <div key={p.id} className="flex justify-between text-xs border border-border rounded px-2 py-1">
+                          <span>{new Date(p.createdAt).toLocaleDateString()} · {p.method}</span>
+                          <span>Rs {p.amount.toLocaleString()}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
                 {settings?.promotions.buyXGetYEnabled && (
                   <div className="text-xs text-muted-foreground">
                     Promo active: Buy {settings.promotions.buyXQty}, get {settings.promotions.buyYQty} free.
@@ -183,6 +223,51 @@ export default function BillingPage() {
                     Promo active: Spend Rs {settings.promotions.spendAmount}, get {settings.promotions.spendFreeQty} bottles free.
                   </div>
                 )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={invoicePaymentMutation.isPending || selected.amountDue <= 0}
+                  onClick={() =>
+                    invoicePaymentMutation.mutate({
+                      customerId: selected.customerId,
+                      amount: selected.amountDue,
+                      method: 'cash',
+                      referenceId: selected.deliveryId,
+                      paymentType: 'receive_payment',
+                      notes: `Receive payment for ${selected.id}`,
+                    })
+                  }
+                >
+                  Receive Payment
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={invoicePaymentMutation.isPending || selected.amountDue <= 0}
+                  onClick={() =>
+                    invoicePaymentMutation.mutate({
+                      customerId: selected.customerId,
+                      amount: selected.amountDue,
+                      method: 'cash',
+                      referenceId: selected.deliveryId,
+                      paymentType: 'mark_paid',
+                      notes: `Mark as paid for ${selected.id}`,
+                    })
+                  }
+                >
+                  Mark as Paid
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => toast.info('Credit is auto adjusted via FIFO payments')}>
+                  Credit
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => toast.info('Debit view available in customer details')}>
+                  Debit
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => toast.info('Payment history is listed above')}>
+                  View Payment History
+                </Button>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setSelected(null)}>Close</Button>
