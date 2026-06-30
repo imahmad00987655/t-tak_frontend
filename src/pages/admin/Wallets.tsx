@@ -57,12 +57,20 @@ export default function WalletsPage() {
 
   const mutation = useMutation({
     mutationFn: rechargeWallet,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['wallets'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['finance-lookups'] });
-      toast.success('Wallet recharged successfully');
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+      const applied = Number((data as { appliedToInvoicesAmount?: number })?.appliedToInvoicesAmount || 0);
+      const credited = Number((data as { creditedAmount?: number })?.creditedAmount || 0);
+      if (applied > 0) {
+        toast.success(`Recharge recorded: Rs ${applied.toLocaleString()} applied to pending invoices (FIFO)${credited > 0 ? `, Rs ${credited.toLocaleString()} added to wallet` : ''}`);
+      } else {
+        toast.success(`Wallet recharged: Rs ${credited.toLocaleString()} added to balance`);
+      }
       setOpen(false);
       reset();
     },
